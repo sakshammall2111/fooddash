@@ -80,6 +80,9 @@ def call_groq(meal_text):
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {API_KEY}",
+            # Cloudflare in front of the Groq API blocks the default
+            # "Python-urllib/3.x" user agent with error 1010 (bot ban).
+            "User-Agent": "Mozilla/5.0 (compatible; MealLens/1.0)",
         },
         method="POST",
     )
