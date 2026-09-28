@@ -1,0 +1,9 @@
+# Never commit your API key
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Misc
+.DS_Store

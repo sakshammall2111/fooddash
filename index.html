@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MealLens — Food &amp; Nutrition Analyser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">🥗</div>
+    <div>
+      <h1>MealLens</h1>
+      <p class="tagline">AI food &amp; nutrition analyser</p>
+    </div>
+  </div>
+  <nav class="nav">
+    <a href="#analyser" class="nav-link">Analyser</a>
+    <a href="#dashboard" class="nav-link">Dashboard</a>
+    <a href="#database" class="nav-link">Foods</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ ANALYSER ============ -->
+  <section id="analyser" class="card panel">
+    <h2>🍽 Analyse your meal</h2>
+    <p class="muted">Describe a food or a whole meal — amounts in grams help. e.g. <em>"2 chapati + 1 bowl dal + 100g curd"</em></p>
+    <textarea id="mealInput" rows="3" placeholder="e.g. 2 chapati, 150 g rajma, 100 g rice, 1 tsp ghee"></textarea>
+    <div class="row">
+      <button id="analyseBtn" class="btn primary big">✨ Analyse</button>
+      <button id="clearBtn" class="btn ghost">Clear</button>
+      <label class="checkbox"><input type="checkbox" id="useLocal"> Also use offline food table</label>
+    </div>
+    <div id="status" class="status hidden"></div>
+
+    <div id="result" class="hidden">
+      <div class="hero-grid">
+        <div class="score-card">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+              <circle id="ringFg" class="ring-fg" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="ring-text"><span id="scoreNum">–</span><small>/ 10</small></div>
+          </div>
+          <div id="scoreLabel" class="score-label">—</div>
+        </div>
+        <div class="macros">
+          <div id="macroChips" class="chips"></div>
+          <div id="notes" class="notes"></div>
+        </div>
+      </div>
+      <div id="itemsTableWrap"></div>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="dashboard" class="panel">
+    <h2>📊 Nutrition Dashboard</h2>
+    <div class="charts-grid">
+      <div class="card chart-card">
+        <h3>Macro split</h3>
+        <div class="chart-box"><canvas id="macroChart"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Calories by food item</h3>
+        <div class="chart-box"><canvas id="itemsChart"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>% Daily Value covered (2000 kcal diet)</h3>
+        <div class="chart-box"><canvas id="dvChart"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Fuel source (kcal from each macro)</h3>
+        <div class="chart-box"><canvas id="fuelChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DATABASE ============ -->
+  <section id="database" class="panel">
+    <h2>🗂 Offline food table <span class="muted small" id="dbCount"></span></h2>
+    <input id="dbSearch" class="search" type="search" placeholder="Search food, category or tag… (e.g. dal, high fibre, fried)">
+    <div class="table-wrap card">
+      <table id="dbTable">
+        <thead>
+          <tr>
+            <th data-sort="name">Food</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="calories">kcal</th>
+            <th data-sort="protein">Protein</th>
+            <th data-sort="carbs">Carbs</th>
+            <th data-sort="fat">Fat</th>
+            <th data-sort="fiber">Fibre</th>
+            <th data-sort="sugar">Sugar</th>
+            <th data-sort="sodium">Sodium</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>Made with ❤ — values are approximations, not medical advice. <span id="groqStatus" class="muted"></span></footer>
+
+<script src="script.js"></script>
+</body>
+</html>
