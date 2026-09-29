@@ -7,3 +7,11 @@ __pycache__/
 
 # Misc
 .DS_Store
+
+.vercel
+.env*
+
+# Vercel CLI local env
+.env.local
+.env*.local
+.vercel
