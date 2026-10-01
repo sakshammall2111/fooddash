@@ -128,7 +128,7 @@ const FOODS = [
    2. Constants, state & element handles
    ------------------------------------------------------------------ */
 const API_URL = "/api/analyse";
-const DV = { calories: 2000, protein: 50, fiber: 30, sugar: 50, sodium: 2300 }; // FDA daily values
+const DV = { calories: 2000, protein: 50, fiber: 30, sugar: 50, sodium: 2300, fat: 78 }; // FDA daily values
 
 const PALETTE = {
   protein: "#22c55e", carbs: "#0ea5e9", fat: "#f59e0b",
@@ -145,12 +145,13 @@ const els = {
   macroChips: $("macroChips"), notes: $("notes"), itemsTableWrap: $("itemsTableWrap"),
   negativesBox: $("negativesBox"), negativesList: $("negativesList"),
   altBox: $("altBox"), altList: $("altList"),
+  peopleCount: $("peopleCount"), portionBox: $("portionBox"), portionGrid: $("portionGrid"),
   dbSearch: $("dbSearch"), dbTableBody: document.querySelector("#dbTable tbody"),
   dbCount: $("dbCount"), groqStatus: $("groqStatus"),
 };
 
 const state = {
-  charts: { macro: null, items: null, dv: null, fuel: null },
+  charts: { items: null, targets: null },
   dbSort: { key: "name", dir: 1 },
   ready: false,
 };
@@ -162,7 +163,7 @@ async function analyseOnServer(mealText) {
   const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: mealText }),
+    body: JSON.stringify({ text: mealText, people: parseInt(els.peopleCount.value, 10) || 1 }),
   });
   let payload;
   try { payload = await res.json(); } catch { payload = {}; }
@@ -217,8 +218,15 @@ function normalizeAnalysis(raw) {
                      why: String(alt?.why || "").trim().slice(0, 120) }))
     .filter((alt) => alt.name)
     .slice(0, 4);
+  const pa = raw.portion_advice || {};
+  const portion = {
+    howMuch: String(pa.how_much || "").trim().slice(0, 90),
+    calories: num(pa.calories, 0),
+    howOften: String(pa.how_often || "").trim().slice(0, 90),
+    bestTime: String(pa.best_time || "").trim().slice(0, 60),
+  };
   return { items, totals, rating, ratingReason: String(raw.rating_reason || ""),
-           notes, negatives, alternatives };
+           notes, negatives, alternatives, portion };
 }
 
 function mergeLocalItems(analysis, mealText) {
@@ -311,6 +319,35 @@ function renderAlternatives(alts) {
     .join("");
 }
 
+function renderPortion() {
+  const pa = analysis?.portion || {};
+  const people = parseInt(els.peopleCount.value, 10) || 1;
+  const t = analysis?.totals;
+  const perPersonKcal = t ? Math.round(t.calories / Math.max(people, 1)) : 0;
+  const recKcal = pa.calories ? Math.round(pa.calories) : perPersonKcal;
+  const tiles = [
+    ["🍽", "Recommended serving", pa.howMuch || (t ? `${Math.round(t.calories / Math.max(people, 1))} kcal per person` : "—")],
+    ["🔥", "Calories in that serving", recKcal ? `${recKcal} kcal` : "—"],
+    ["📅", "How often to eat this", pa.howOften || "—"],
+    ["🕐", "Best time to eat", pa.bestTime || "—"],
+  ];
+  els.portionGrid.innerHTML = tiles
+    .map(([icon, label, val]) => `
+      <div class="portion-tile">
+        <div class="pt-icon">${icon}</div>
+        <div>
+          <div class="pt-label">${label}</div>
+          <div class="pt-val">${String(val).replace(/</g, "&lt;")}</div>
+        </div>
+      </div>`)
+    .join("") +
+    (people > 1 && t ? `
+      <div class="portion-foot">👨‍👩‍👧‍👦 Divided among <b>${people} people</b> — that's about
+        <b>${perPersonKcal} kcal</b>, <b>${(t.protein / people).toFixed(1)} g protein</b> and
+        <b>${Math.round(t.sodium / people)} mg sodium</b> per person.</div>` : "");
+  els.portionBox.classList.remove("hidden");
+}
+
 function renderItemsTable(items, totals) {
   const rows = items.map((it) => `
     <tr>
@@ -355,87 +392,132 @@ function renderAll(analysisData) {
   renderNotes(analysis);
   renderNegatives(analysis.negatives);
   renderAlternatives(analysis.alternatives);
+  renderPortion();
   renderItemsTable(analysis.items, analysis.totals);
   updateCharts(analysis);
 }
 
 /* ------------------------------------------------------------------
-   6. Charts (Chart.js pies)
+   6. Charts — one doughnut (energy by item) + one bar (vs daily targets)
    ------------------------------------------------------------------ */
-function basePieOptions() {
+// Dashed "100 % of target" guide line for the bar chart
+const targetLinePlugin = {
+  id: "targetLine",
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea: area, scales: { y } } = chart;
+    const yPos = y.getPixelForValue(100);
+    if (yPos < area.top || yPos > area.bottom) return;
+    ctx.save();
+    ctx.strokeStyle = "rgba(232, 238, 252, .45)";
+    ctx.setLineDash([6, 5]);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(area.left, yPos);
+    ctx.lineTo(area.right, yPos);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(232, 238, 252, .6)";
+    ctx.font = "600 10px Inter, sans-serif";
+    ctx.fillText("100% of daily target", area.left + 6, yPos - 5);
+    ctx.restore();
+  },
+};
+
+const CHART_GRID = { color: "rgba(31, 45, 74, .7)" };
+
+function baseOptions() {
   return {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { position: "bottom", labels: { color: "#9fb0cf", boxWidth: 12, font: { size: 11 } } },
-      tooltip: { callbacks: { label: (c) => ` ${c.label}: ${c.parsed}%` } },
-      title: { display: false },
+      legend: { position: "bottom", labels: { color: "#9fb0cf", boxWidth: 12, padding: 14, font: { size: 11 } } },
+      tooltip: {
+        backgroundColor: "#0b1220", borderColor: "#1f2d4a", borderWidth: 1,
+        titleColor: "#e8eefc", bodyColor: "#9fb0cf", padding: 10,
+      },
     },
   };
 }
 
-function emptyPie() {
-  return { labels: ["No data yet"], datasets: [{ data: [1], backgroundColor: ["#2a3956"], borderWidth: 0 }] };
+function emptyData() {
+  return { labels: ["No data yet"], datasets: [{ data: [0], backgroundColor: ["#2a3956"], borderWidth: 0 }] };
 }
 
 function ensureCharts() {
-  if (state.charts.macro) return;
-  const opts = basePieOptions();
-  state.charts.macro = new Chart($("macroChart"), { type: "pie", data: emptyPie(), options: opts });
-  state.charts.items = new Chart($("itemsChart"), { type: "pie", data: emptyPie(), options: opts });
-  state.charts.dv    = new Chart($("dvChart"),    { type: "pie", data: emptyPie(), options: opts });
-  state.charts.fuel  = new Chart($("fuelChart"),  { type: "pie", data: emptyPie(), options: opts });
-}
-
-function setPie(chart, labels, values, colors, unit = "%") {
-  chart.data.labels = labels;
-  chart.data.datasets = [{ data: values, backgroundColor: colors, borderColor: "#131f36", borderWidth: 2 }];
-  chart.options.plugins.tooltip.callbacks.label = (c) => ` ${c.label}: ${c.parsed}${unit}`;
-  chart.update();
+  if (state.charts.items) return;
+  state.charts.items = new Chart($("itemsChart"), {
+    type: "doughnut",
+    data: { ...emptyData(), datasets: [{ data: [1], backgroundColor: ["#2a3956"], borderWidth: 0, cutout: "58%" }] },
+    options: baseOptions(),
+  });
+  state.charts.targets = new Chart($("targetsChart"), {
+    type: "bar",
+    data: emptyData(),
+    options: {
+      ...baseOptions(),
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#9fb0cf", font: { size: 11 } } },
+        y: {
+          grid: CHART_GRID, suggestedMax: 120,
+          ticks: { color: "#9fb0cf", font: { size: 11 }, callback: (v) => v + "%" },
+        },
+      },
+    },
+    plugins: [targetLinePlugin],
+  });
 }
 
 function updateCharts(a) {
   ensureCharts();
   const t = a.totals;
 
-  // 1) Macro split (% of energy)
-  const pk = t.protein * 4, ck = t.carbs * 4, fk = t.fat * 9;
-  const tot = Math.max(pk + ck + fk, 1);
-  setPie(state.charts.macro,
-    ["Protein", "Carbs", "Fat"],
-    [pk, ck, fk].map((v) => Math.round((v / tot) * 100)),
-    [PALETTE.protein, PALETTE.carbs, PALETTE.fat]);
-
-  // 2) Calories by item
+  // 1) Doughnut — energy share by food item
   const items = [...a.items].sort((x, y) => y.calories - x.calories);
-  setPie(state.charts.items,
-    items.map((i) => i.name),
-    items.map((i) => Math.max(i.calories, 0)),
-    items.map((_, i) => PALETTE.extra[i % PALETTE.extra.length]),
-    " kcal");
+  const kcalData = items.map((i) => Math.max(i.calories, 0));
+  const kcalTotal = Math.max(kcalData.reduce((s, v) => s + v, 0), 1);
+  const pie = state.charts.items;
+  pie.data.labels = items.map((i) => i.name);
+  pie.data.datasets = [{
+    data: kcalData,
+    backgroundColor: items.map((_, i) => PALETTE.extra[i % PALETTE.extra.length]),
+    borderColor: "#131f36", borderWidth: 2, hoverOffset: 10, cutout: "58%",
+    _total: kcalTotal,
+  }];
+  pie.options.plugins.tooltip.callbacks = {
+    label: (c) => {
+      const pct = Math.round((c.parsed / c.dataset._total) * 100);
+      return ` ${Math.round(c.parsed)} kcal · ${pct}% of the meal`;
+    },
+  };
+  pie.options.cutout = "58%";
+  pie.update();
 
-  // 3) % Daily Value progress (vs 2000 kcal diet)
-  const dvPairs = [
-    ["Energy", t.calories, DV.calories, "#22c55e"],
-    ["Protein", t.protein, DV.protein, "#0ea5e9"],
-    ["Fibre", t.fiber, DV.fiber, "#8b5cf6"],
-    ["Sugar cap", t.sugar, DV.sugar, "#f43f5e"],
-    ["Sodium cap", t.sodium, DV.sodium, "#94a3b8"],
+  // 2) Bars — this meal vs a full day's budget (2000 kcal reference)
+  const caps = [
+    ["Energy", t.calories, DV.calories, "kcal"],
+    ["Protein", t.protein, DV.protein, "g"],
+    ["Fibre", t.fiber, DV.fiber, "g"],
+    ["Fat", t.fat, DV.fat, "g"],
+    ["Sugar", t.sugar, DV.sugar, "g"],
+    ["Sodium", t.sodium, DV.sodium, "mg"],
   ];
-  const labels = [], values = [], colors = [];
-  dvPairs.forEach(([label, used, limit, color]) => {
-    const pct = clamp((used / Math.max(limit, 1)) * 100, 0, 100);
-    labels.push(`${label} (${Math.round(pct)}%)`);
-    values.push(pct);
-    colors.push(color);
-    if (pct < 100) { labels.push("left"); values.push(100 - pct); colors.push(PALETTE.remaining); }
-  });
-  setPie(state.charts.dv, labels, values, colors);
-
-  // 4) Fuel source — kcal from each macro
-  setPie(state.charts.fuel,
-    ["Protein kcal", "Carb kcal", "Fat kcal"],
-    [Math.round(pk), Math.round(ck), Math.round(fk)],
-    [PALETTE.protein, PALETTE.carbs, PALETTE.fat], " kcal");
+  const bar = state.charts.targets;
+  bar.data.labels = caps.map(([label]) => label);
+  bar.data.datasets = [{
+    label: "% of daily target used",
+    data: caps.map(([, used, cap]) => clamp((used / Math.max(cap, 1)) * 100, 0, 130)),
+    backgroundColor: caps.map(([, used, cap]) => {
+      const p = (used / Math.max(cap, 1)) * 100;
+      return p > 100 ? PALETTE.sugar : p > 60 ? PALETTE.fat : PALETTE.protein; // red / amber / green
+    }),
+    borderRadius: 8, maxBarThickness: 46,
+  }];
+  bar.options.plugins.tooltip.callbacks = {
+    label: (c) => {
+      const [, used, cap, unit] = caps[c.dataIndex];
+      return ` ${Math.round(used)} ${unit} of ${Math.round(cap)} ${unit} (${Math.round(c.parsed.y)}%)`;
+    },
+  };
+  bar.update();
 }
 
 /* ------------------------------------------------------------------
@@ -466,6 +548,9 @@ els.clearBtn.addEventListener("click", () => {
   els.mealInput.value = "";
   els.status.classList.add("hidden");
   els.result.classList.add("hidden");
+});
+els.peopleCount.addEventListener("change", () => {
+  if (analysis) renderPortion();  // re-split guidance for the new head-count
 });
 
 /* ------------------------------------------------------------------

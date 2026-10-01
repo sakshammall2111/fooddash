@@ -56,7 +56,13 @@ Reply with ONLY a JSON object, no markdown, matching exactly:
   "negatives": ["short unhealthy aspect 1", "short unhealthy aspect 2"],
   "alternatives": [
     {"name": "healthier similar food", "why": "one short sentence why it is better"}
-  ]
+  ],
+  "portion_advice": {
+    "how_much": "e.g. 1 katori (150 g) per person as part of a meal",
+    "calories": 240,
+    "how_often": "e.g. 2-3 times a week",
+    "best_time": "e.g. lunch"
+  }
 }
 Rules:
 - 4-10 items max; merge tiny condiments into the dish they belong to.
@@ -64,8 +70,9 @@ Rules:
 - notes: 3-6 strings, max 90 chars each (energy density, macro balance, fibre, sugar, sodium, what to add).
 - negatives: 2-5 short strings (max 80 chars each) calling out the UNHEALTHY aspects of the meal: deep-fried, high saturated fat, added sugar, refined carbs, excess sodium, ultra-processed, low fibre, oversized portion, etc. Be specific with numbers when useful (e.g. "1 180 mg sodium is 68% of a day's cap"). If the meal is genuinely very healthy, return an empty array [].
 - alternatives: 2-4 objects; each a SIMILAR but healthier food or swap for the same craving/dish (e.g. fried samosa -> baked vegetable samosa or sprout chaat; white rice -> brown rice or quinoa; sugary cola -> sparkling water with lime). Make the options genuinely varied (different dishes or preparations, not the same dish with one word changed). "why" is one short sentence (max 90 chars) on what makes it better. Keep names short.
+- portion_advice: portion guidance for ONE person. how_much = realistic household measure to eat in one sitting (e.g. \"2 chapati + 1 katori dal\"); calories = kcal of that recommended portion; how_often = how frequently it is OK to eat this (\"daily\", \"4-5 times a week\", \"once a week\", \"occasionally as a treat\"); best_time = best time of day (breakfast/lunch/evening snack/avoid late night). Keep strings short (max 80 chars).
 - grams/ml must be plausible for a single serving of the described meal.
-- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": [], "negatives": [], "alternatives": []}."""
+- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": [], "negatives": [], "alternatives": [], "portion_advice": {}}."""
 
 
 def call_groq(meal_text):

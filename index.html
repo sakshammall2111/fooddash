@@ -34,6 +34,18 @@
     <div class="row">
       <button id="analyseBtn" class="btn primary big">✨ Analyse</button>
       <button id="clearBtn" class="btn ghost">Clear</button>
+      <label class="people-picker">👥
+        <select id="peopleCount">
+          <option value="1">1 person</option>
+          <option value="2">2 people</option>
+          <option value="3">3 people</option>
+          <option value="4">4 people</option>
+          <option value="5">5 people</option>
+          <option value="6">6 people</option>
+          <option value="8">8 people</option>
+          <option value="10">10 people</option>
+        </select>
+      </label>
       <label class="checkbox"><input type="checkbox" id="useLocal"> Also use offline food table</label>
     </div>
     <div id="status" class="status hidden"></div>
@@ -63,6 +75,10 @@
         <h3>💡 Healthier swaps — try these instead</h3>
         <div id="altList" class="alt-list"></div>
       </div>
+      <div id="portionBox" class="insight-box portion hidden">
+        <h3>🍚 How much &amp; how often</h3>
+        <div id="portionGrid" class="portion-grid"></div>
+      </div>
       <div id="itemsTableWrap"></div>
     </div>
   </section>
@@ -70,22 +86,16 @@
   <!-- ============ DASHBOARD ============ -->
   <section id="dashboard" class="panel">
     <h2>📊 Nutrition Dashboard</h2>
-    <div class="charts-grid">
+    <div class="charts-grid two">
       <div class="card chart-card">
-        <h3>Macro split</h3>
-        <div class="chart-box"><canvas id="macroChart"></canvas></div>
-      </div>
-      <div class="card chart-card">
-        <h3>Calories by food item</h3>
+        <h3>🥧 Where the calories come from</h3>
+        <p class="muted small">Energy share by food item — bigger slice, more calories</p>
         <div class="chart-box"><canvas id="itemsChart"></canvas></div>
       </div>
       <div class="card chart-card">
-        <h3>% Daily Value covered (2000 kcal diet)</h3>
-        <div class="chart-box"><canvas id="dvChart"></canvas></div>
-      </div>
-      <div class="card chart-card">
-        <h3>Fuel source (kcal from each macro)</h3>
-        <div class="chart-box"><canvas id="fuelChart"></canvas></div>
+        <h3>📶 Your meal vs daily targets</h3>
+        <p class="muted small">How much of a 2000 kcal day's budget this meal uses</p>
+        <div class="chart-box"><canvas id="targetsChart"></canvas></div>
       </div>
     </div>
   </section>
