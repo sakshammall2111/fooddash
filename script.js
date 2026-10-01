@@ -143,6 +143,8 @@ const els = {
   useLocal: $("useLocal"), status: $("status"), result: $("result"),
   ringFg: $("ringFg"), scoreNum: $("scoreNum"), scoreLabel: $("scoreLabel"),
   macroChips: $("macroChips"), notes: $("notes"), itemsTableWrap: $("itemsTableWrap"),
+  negativesBox: $("negativesBox"), negativesList: $("negativesList"),
+  altBox: $("altBox"), altList: $("altList"),
   dbSearch: $("dbSearch"), dbTableBody: document.querySelector("#dbTable tbody"),
   dbCount: $("dbCount"), groqStatus: $("groqStatus"),
 };
@@ -208,7 +210,15 @@ function normalizeAnalysis(raw) {
   rating = clamp(rating, 0, 10);
 
   const notes = (Array.isArray(raw.notes) ? raw.notes : []).map(String).slice(0, 6);
-  return { items, totals, rating, ratingReason: String(raw.rating_reason || ""), notes };
+  const negatives = (Array.isArray(raw.negatives) ? raw.negatives : [])
+    .map((n) => String(n).trim()).filter(Boolean).slice(0, 5);
+  const alternatives = (Array.isArray(raw.alternatives) ? raw.alternatives : [])
+    .map((alt) => ({ name: String(alt?.name || "").trim().slice(0, 60),
+                     why: String(alt?.why || "").trim().slice(0, 120) }))
+    .filter((alt) => alt.name)
+    .slice(0, 4);
+  return { items, totals, rating, ratingReason: String(raw.rating_reason || ""),
+           notes, negatives, alternatives };
 }
 
 function mergeLocalItems(analysis, mealText) {
@@ -272,6 +282,35 @@ function renderNotes(a) {
   els.notes.innerHTML = notes.map((n) => `<div>${n.replace(/</g, "&lt;")}</div>`).join("");
 }
 
+function renderNegatives(negatives) {
+  const list = Array.isArray(negatives) ? negatives : [];
+  if (!list.length) {
+    els.negativesBox.classList.add("hidden");
+    els.negativesList.innerHTML = "";
+    return;
+  }
+  els.negativesBox.classList.remove("hidden");
+  els.negativesList.innerHTML = list
+    .map((n) => `<div>${String(n).replace(/</g, "&lt;")}</div>`).join("");
+}
+
+function renderAlternatives(alts) {
+  const list = Array.isArray(alts) ? alts : [];
+  if (!list.length) {
+    els.altBox.classList.add("hidden");
+    els.altList.innerHTML = "";
+    return;
+  }
+  els.altBox.classList.remove("hidden");
+  els.altList.innerHTML = list
+    .map((alt) => `
+      <div class="alt-card">
+        <div class="alt-name">🥗 ${String(alt.name).replace(/</g, "&lt;")}</div>
+        <div class="alt-why">${String(alt.why || "").replace(/</g, "&lt;")}</div>
+      </div>`)
+    .join("");
+}
+
 function renderItemsTable(items, totals) {
   const rows = items.map((it) => `
     <tr>
@@ -314,6 +353,8 @@ function renderAll(analysisData) {
   renderScore(analysis.rating);
   renderChips(analysis.totals);
   renderNotes(analysis);
+  renderNegatives(analysis.negatives);
+  renderAlternatives(analysis.alternatives);
   renderItemsTable(analysis.items, analysis.totals);
   updateCharts(analysis);
 }

@@ -16,14 +16,20 @@ Reply with ONLY a JSON object, no markdown, matching exactly:
   ],
   "rating": 7.5,
   "rating_reason": "one short sentence on why this score",
-  "notes": ["short insight 1", "short insight 2", "short insight 3"]
+  "notes": ["short insight 1", "short insight 2", "short insight 3"],
+  "negatives": ["short unhealthy aspect 1", "short unhealthy aspect 2"],
+  "alternatives": [
+    {"name": "healthier similar food", "why": "one short sentence why it is better"}
+  ]
 }
 Rules:
 - 4-10 items max; merge tiny condiments into the dish they belong to.
 - rating: healthiness of the whole meal, 0 (worst) to 10 (best), one decimal.
 - notes: 3-6 strings, max 90 chars each (energy density, macro balance, fibre, sugar, sodium, what to add).
+- negatives: 2-5 short strings (max 80 chars each) calling out the UNHEALTHY aspects of the meal: deep-fried, high saturated fat, added sugar, refined carbs, excess sodium, ultra-processed, low fibre, oversized portion, etc. Be specific with numbers when useful (e.g. "1 180 mg sodium is 68% of a day's cap"). If the meal is genuinely very healthy, return an empty array [].
+- alternatives: 2-4 objects; each a SIMILAR but healthier food or swap for the same craving/dish (e.g. fried samosa -> baked vegetable samosa or sprout chaat; white rice -> brown rice or quinoa; sugary cola -> sparkling water with lime). Make the options genuinely varied (different dishes or preparations, not the same dish with one word changed). "why" is one short sentence (max 90 chars) on what makes it better. Keep names short.
 - grams/ml must be plausible for a single serving of the described meal.
-- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": []}.`;
+- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": [], "negatives": [], "alternatives": []}.`;
 
 function json(res, code, payload) {
   res.statusCode = code;

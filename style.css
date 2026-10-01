@@ -104,6 +104,9 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
 
 #mealInput { margin-top: .7rem; }
 
+/* ---------- Utilities ---------- */
+.hidden { display: none !important; }
+
 /* ---------- Status ---------- */
 .status {
   margin-top: .9rem; padding: .6rem .9rem; border-radius: 10px;
@@ -155,6 +158,39 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
   font-size: .88rem; color: var(--ink-dim); padding-left: 1.2rem; position: relative;
 }
 .notes div::before { content: "•"; position: absolute; left: .2rem; color: var(--brand); }
+
+/* ---------- Insights: negatives & healthier swaps ---------- */
+.insight-box {
+  margin-top: 1.2rem; padding: 1rem 1.1rem;
+  background: var(--bg-soft); border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+}
+.insight-box h3 { color: var(--ink); margin-bottom: .7rem; }
+.insight-box.negatives { border-color: rgba(244, 63, 94, .35); }
+.insight-box.negatives h3 { color: var(--rose); }
+.insight-box.alternatives { border-color: rgba(34, 197, 94, .35); }
+.insight-box.alternatives h3 { color: var(--brand); }
+
+.neg-list { display: flex; flex-direction: column; gap: .4rem; }
+.neg-list div {
+  font-size: .88rem; color: var(--ink); padding-left: 1.5rem; position: relative;
+}
+.neg-list div::before {
+  content: "▲"; position: absolute; left: .2rem; top: .1rem;
+  color: var(--rose); font-size: .7rem;
+}
+
+.alt-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .7rem;
+}
+.alt-card {
+  background: var(--card); border: 1px solid rgba(34, 197, 94, .3);
+  border-radius: 12px; padding: .75rem .85rem;
+  transition: transform .12s ease, border-color .15s ease;
+}
+.alt-card:hover { transform: translateY(-2px); border-color: var(--brand); }
+.alt-name { font-weight: 700; font-size: .9rem; color: var(--ink); }
+.alt-why { margin-top: .25rem; font-size: .8rem; color: var(--ink-dim); line-height: 1.45; }
 
 /* ---------- Tables ---------- */
 #itemsTableWrap { margin-top: 1.2rem; overflow-x: auto; }
