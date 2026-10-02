@@ -2,18 +2,16 @@
    MealLens — Food & Nutrition Analyser
    ===================================================== */
 :root {
-  --bg: #0b1220;
-  --bg-soft: #101a2e;
-  --card: #131f36;
-  --card-edge: #1f2d4a;
-  --ink: #e8eefc;
-  --ink-dim: #9fb0cf;
-  --brand: #22c55e;
-  --brand-2: #0ea5e9;
-  --amber: #f59e0b;
+  --bg: #07130c;
+  --bg-soft: #0c1d13;
+  --card: #10271a;
+  --card-edge: #1d3d29;
+  --ink: #eafcf1;
+  --ink-dim: #9cc3ac;
+  --brand: #34d399;
+  --brand-2: #a3e635;
+  --amber: #fbbf24;
   --rose: #f43f5e;
-  --violet: #8b5cf6;
-  --cyan: #06b6d4;
   --radius: 16px;
   --shadow: 0 10px 30px rgba(0, 0, 0, .35);
 }
@@ -25,8 +23,8 @@ html { scroll-behavior: smooth; }
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background:
-    radial-gradient(1200px 500px at 85% -10%, rgba(14, 165, 233, .12), transparent 60%),
-    radial-gradient(900px 400px at -10% 0%, rgba(34, 197, 94, .10), transparent 55%),
+    radial-gradient(1200px 500px at 85% -10%, rgba(52, 211, 153, .13), transparent 60%),
+    radial-gradient(900px 400px at -10% 0%, rgba(163, 230, 53, .09), transparent 55%),
     var(--bg);
   color: var(--ink);
   min-height: 100vh;
@@ -43,7 +41,7 @@ a { color: var(--brand-2); }
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: .7rem 1.2rem; flex-wrap: wrap;
-  background: rgba(11, 18, 32, .82);
+  background: rgba(6, 17, 11, .82);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--card-edge);
 }
@@ -51,7 +49,7 @@ a { color: var(--brand-2); }
 .logo {
   width: 42px; height: 42px; display: grid; place-items: center;
   font-size: 1.3rem; border-radius: 12px;
-  background: linear-gradient(135deg, rgba(34,197,94,.25), rgba(14,165,233,.25));
+  background: linear-gradient(135deg, rgba(52,211,153,.28), rgba(163,230,53,.22));
   border: 1px solid var(--card-edge);
 }
 .tagline { font-size: .72rem; color: var(--ink-dim); }
@@ -73,7 +71,7 @@ a { color: var(--brand-2); }
 .btn:active { transform: scale(.97); }
 .btn.primary {
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
-  border: none; color: #041014;
+  border: none; color: #052e16;
 }
 .btn.big { font-size: .95rem; padding: .65rem 1.4rem; }
 .btn.ghost { background: transparent; }
@@ -159,13 +157,13 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
   display: inline-flex; gap: .45rem; align-items: baseline;
 }
 .chip b { font-size: .95rem; }
-.chip.protein { border-color: rgba(34,197,94,.5); }
-.chip.carbs   { border-color: rgba(14,165,233,.5); }
-.chip.fat     { border-color: rgba(245,158,11,.5); }
-.chip.fiber   { border-color: rgba(139,92,246,.5); }
-.chip.sugar   { border-color: rgba(244,63,94,.5); }
-.chip.sodium  { border-color: rgba(148,163,184,.6); }
-.chip.calories{ border-color: rgba(255,255,255,.35); }
+.chip.protein { border-color: rgba(52,211,153,.5); }
+.chip.carbs   { border-color: rgba(45,212,191,.5); }
+.chip.fat     { border-color: rgba(251,191,36,.5); }
+.chip.fiber   { border-color: rgba(132,204,22,.55); }
+.chip.sugar   { border-color: rgba(248,113,113,.5); }
+.chip.sodium  { border-color: rgba(156,195,172,.6); }
+.chip.calories{ border-color: rgba(234,252,241,.35); }
 
 .notes { margin-top: .9rem; display: flex; flex-direction: column; gap: .35rem; }
 .notes div {
@@ -182,7 +180,7 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
 .insight-box h3 { color: var(--ink); margin-bottom: .7rem; }
 .insight-box.negatives { border-color: rgba(244, 63, 94, .35); }
 .insight-box.negatives h3 { color: var(--rose); }
-.insight-box.alternatives { border-color: rgba(34, 197, 94, .35); }
+.insight-box.alternatives { border-color: rgba(52, 211, 153, .4); }
 .insight-box.alternatives h3 { color: var(--brand); }
 
 .neg-list { display: flex; flex-direction: column; gap: .4rem; }
@@ -198,7 +196,7 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .7rem;
 }
 .alt-card {
-  background: var(--card); border: 1px solid rgba(34, 197, 94, .3);
+  background: var(--card); border: 1px solid rgba(52, 211, 153, .32);
   border-radius: 12px; padding: .75rem .85rem;
   transition: transform .12s ease, border-color .15s ease;
 }
@@ -207,7 +205,7 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
 .alt-why { margin-top: .25rem; font-size: .8rem; color: var(--ink-dim); line-height: 1.45; }
 
 /* ---------- Portion guidance ---------- */
-.insight-box.portion { border-color: rgba(14, 165, 233, .35); }
+.insight-box.portion { border-color: rgba(163, 230, 53, .32); }
 .insight-box.portion h3 { color: var(--brand-2); }
 .portion-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .7rem;
@@ -224,7 +222,7 @@ main > * { min-width: 0; }  /* prevent grid blowout from wide nowrap tables */
 .pt-val { font-weight: 700; font-size: .88rem; color: var(--ink); line-height: 1.4; }
 .portion-foot {
   grid-column: 1 / -1; margin-top: .2rem; padding: .6rem .8rem;
-  background: rgba(14, 165, 233, .08); border: 1px dashed rgba(14, 165, 233, .4);
+  background: rgba(163, 230, 53, .08); border: 1px dashed rgba(163, 230, 53, .38);
   border-radius: 10px; font-size: .85rem; color: var(--ink-dim);
 }
 .portion-foot b { color: var(--ink); }

@@ -131,10 +131,10 @@ const API_URL = "/api/analyse";
 const DV = { calories: 2000, protein: 50, fiber: 30, sugar: 50, sodium: 2300, fat: 78 }; // FDA daily values
 
 const PALETTE = {
-  protein: "#22c55e", carbs: "#0ea5e9", fat: "#f59e0b",
-  fiber: "#8b5cf6", sugar: "#f43f5e", sodium: "#94a3b8",
-  remaining: "#2a3956", extra: ["#f97316", "#14b8a6", "#a78bfa", "#eab308",
-                                "#fb7185", "#38bdf8", "#4ade80", "#c084fc"]
+  protein: "#34d399", carbs: "#2dd4bf", fat: "#fbbf24",
+  fiber: "#84cc16", sugar: "#f87171", sodium: "#a3c4b2",
+  remaining: "#1d3d29", extra: ["#a3e635", "#34d399", "#fbbf24", "#2dd4bf",
+                                "#fb923c", "#4ade80", "#e879f9", "#38bdf8"]
 };
 
 const $ = (id) => document.getElementById(id);
@@ -408,7 +408,7 @@ const targetLinePlugin = {
     const yPos = y.getPixelForValue(100);
     if (yPos < area.top || yPos > area.bottom) return;
     ctx.save();
-    ctx.strokeStyle = "rgba(232, 238, 252, .45)";
+    ctx.strokeStyle = "rgba(234, 252, 241, .5)";
     ctx.setLineDash([6, 5]);
     ctx.lineWidth = 1.4;
     ctx.beginPath();
@@ -416,37 +416,37 @@ const targetLinePlugin = {
     ctx.lineTo(area.right, yPos);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(232, 238, 252, .6)";
+    ctx.fillStyle = "rgba(234, 252, 241, .65)";
     ctx.font = "600 10px Inter, sans-serif";
     ctx.fillText("100% of daily target", area.left + 6, yPos - 5);
     ctx.restore();
   },
 };
 
-const CHART_GRID = { color: "rgba(31, 45, 74, .7)" };
+const CHART_GRID = { color: "rgba(29, 61, 41, .75)" };
 
 function baseOptions() {
   return {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { position: "bottom", labels: { color: "#9fb0cf", boxWidth: 12, padding: 14, font: { size: 11 } } },
+      legend: { position: "bottom", labels: { color: "#9cc3ac", boxWidth: 12, padding: 14, font: { size: 11 } } },
       tooltip: {
-        backgroundColor: "#0b1220", borderColor: "#1f2d4a", borderWidth: 1,
-        titleColor: "#e8eefc", bodyColor: "#9fb0cf", padding: 10,
+        backgroundColor: "#08170f", borderColor: "#1d3d29", borderWidth: 1,
+        titleColor: "#eafcf1", bodyColor: "#9cc3ac", padding: 10,
       },
     },
   };
 }
 
 function emptyData() {
-  return { labels: ["No data yet"], datasets: [{ data: [0], backgroundColor: ["#2a3956"], borderWidth: 0 }] };
+  return { labels: ["No data yet"], datasets: [{ data: [0], backgroundColor: ["#1d3d29"], borderWidth: 0 }] };
 }
 
 function ensureCharts() {
   if (state.charts.items) return;
   state.charts.items = new Chart($("itemsChart"), {
     type: "doughnut",
-    data: { ...emptyData(), datasets: [{ data: [1], backgroundColor: ["#2a3956"], borderWidth: 0, cutout: "58%" }] },
+    data: { ...emptyData(), datasets: [{ data: [1], backgroundColor: ["#1d3d29"], borderWidth: 0, cutout: "58%" }] },
     options: baseOptions(),
   });
   state.charts.targets = new Chart($("targetsChart"), {
@@ -455,10 +455,10 @@ function ensureCharts() {
     options: {
       ...baseOptions(),
       scales: {
-        x: { grid: { display: false }, ticks: { color: "#9fb0cf", font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { color: "#9cc3ac", font: { size: 11 } } },
         y: {
           grid: CHART_GRID, suggestedMax: 120,
-          ticks: { color: "#9fb0cf", font: { size: 11 }, callback: (v) => v + "%" },
+          ticks: { color: "#9cc3ac", font: { size: 11 }, callback: (v) => v + "%" },
         },
       },
     },
@@ -479,7 +479,7 @@ function updateCharts(a) {
   pie.data.datasets = [{
     data: kcalData,
     backgroundColor: items.map((_, i) => PALETTE.extra[i % PALETTE.extra.length]),
-    borderColor: "#131f36", borderWidth: 2, hoverOffset: 10, cutout: "58%",
+    borderColor: "#10271a", borderWidth: 2, hoverOffset: 10, cutout: "58%",
     _total: kcalTotal,
   }];
   pie.options.plugins.tooltip.callbacks = {
