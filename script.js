@@ -129,6 +129,8 @@ const FOODS = [
    ------------------------------------------------------------------ */
 const API_URL = "/api/analyse";
 const DV = { calories: 2000, protein: 50, fiber: 30, sugar: 50, sodium: 2300, fat: 78 }; // FDA daily values
+const HISTORY_KEY = "meallens_history_v1";
+const FLAGS_KEY = "meallens_flags_v1";
 
 const PALETTE = {
   protein: "#34d399", carbs: "#2dd4bf", fat: "#fbbf24",
@@ -136,6 +138,36 @@ const PALETTE = {
   remaining: "#1d3d29", extra: ["#a3e635", "#34d399", "#fbbf24", "#2dd4bf",
                                 "#fb923c", "#4ade80", "#e879f9", "#38bdf8"]
 };
+
+const EMOJI_MAP = [
+  ["pizza","🍕"],["burger","🍔"],["sandwich","🥪"],["salad","🥗"],["thali","🍛"],["biryani","🍛"],
+  ["fried rice","🍚"],["pulao","🍚"],["rice","🍚"],["khichdi","🍚"],["bowl","🥣"],
+  ["chapati","🫓"],["roti","🫓"],["paratha","🫓"],["naan","🫓"],["puri","🫓"],["bread","🍞"],["toast","🍞"],
+  ["dosa","🥞"],["idli","🥟"],["samosa","🥟"],["momo","🥟"],["pakora","🥟"],["vada","🥟"],
+  ["omelette","🍳"],["egg","🍳"],["pancake","🥞"],
+  ["paneer","🧀"],["cheese","🧀"],["butter","🧈"],["ghee","🧈"],
+  ["chicken","🍗"],["mutton","🍖"],["meat","🍖"],["fish","🐟"],["prawn","🦐"],["shrimp","🦐"],
+  ["dal","🍲"],["curry","🍲"],["rajma","🍲"],["chole","🍲"],["soup","🍲"],["stew","🍲"],
+  ["noodles","🍜"],["pasta","🍝"],["maggi","🍜"],
+  ["fries","🍟"],["chips","🍟"],
+  ["cake","🍰"],["ice cream","🍦"],["chocolate","🍫"],["jalebi","🍩"],["gulab","🍮"],["kheer","🍮"],["sweet","🍬"],["dessert","🍰"],
+  ["apple","🍎"],["banana","🍌"],["mango","🥭"],["orange","🍊"],["grapes","🍇"],["watermelon","🍉"],
+  ["papaya","🍈"],["guava","🍐"],["pomegranate","🍎"],["berries","🫐"],["fruit","🍎"],
+  ["avocado","🥑"],["broccoli","🥦"],["spinach","🥬"],["salad","🥬"],["vegetable","🥦"],["sprout","🌱"],
+  ["almond","🥜"],["cashew","🥜"],["peanut","🥜"],["nuts","🥜"],
+  ["milk","🥛"],["curd","🥛"],["yogurt","🥛"],["lassi","🥛"],["shake","🥛"],
+  ["chai","☕"],["tea","☕"],["coffee","☕"],["cola","🥤"],["soft drink","🥤"],["juice","🧃"],["drink","🥤"],["water","💧"],["beer","🍺"],["wine","🍷"],
+  ["corn","🌽"],["carrot","🥕"],["mushroom","🍄"],["burger","🍔"]
+];
+
+const BADGES = [
+  { id: "first",    icon: "🌱", name: "First Bite",     desc: "Log your first meal" },
+  { id: "m5",       icon: "🍽", name: "Getting Started", desc: "Log 5 meals" },
+  { id: "m15",      icon: "🏅", name: "Meal Master",     desc: "Log 15 meals" },
+  { id: "streak3",  icon: "🔥", name: "On Fire",         desc: "3-day logging streak" },
+  { id: "green",    icon: "🥗", name: "Green Eater",     desc: "A meal scored 8+/10" },
+  { id: "compare",  icon: "⚖", name: "Food Scientist",  desc: "Compare two foods" },
+];
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -148,22 +180,45 @@ const els = {
   peopleCount: $("peopleCount"), portionBox: $("portionBox"), portionGrid: $("portionGrid"),
   dbSearch: $("dbSearch"), dbTableBody: document.querySelector("#dbTable tbody"),
   dbCount: $("dbCount"), groqStatus: $("groqStatus"),
+  // new elements
+  heroEmoji: $("heroEmoji"), heroCaption: $("heroCaption"), exampleRow: $("exampleRow"),
+  photoInput: $("photoInput"), photoPreviewWrap: $("photoPreviewWrap"),
+  photoPreview: $("photoPreview"), photoRemove: $("photoRemove"),
+  macroCards: $("macroCards"), scoreFiveVal: $("scoreFiveVal"), scoreFiveWhy: $("scoreFiveWhy"),
+  detailsGrid: $("detailsGrid"), smartBox: $("smartBox"), smartList: $("smartList"),
+  compareA: $("compareA"), compareB: $("compareB"), compareBtn: $("compareBtn"),
+  compareSwapBtn: $("compareSwapBtn"), compareStatus: $("compareStatus"),
+  compareWrap: $("compareWrap"), compareCards: $("compareCards"), compareVerdict: $("compareVerdict"),
+  weekChartEl: $("weekChart"), weekSummary: $("weekSummary"),
+  streakDays: $("streakDays"), totalMeals: $("totalMeals"), avgScore: $("avgScore"), weekKcal: $("weekKcal"),
+  badgesRow: $("badgesRow"), historyList: $("historyList"), clearHistoryBtn: $("clearHistoryBtn"),
+  catChips: $("catChips"),
 };
 
 const state = {
-  charts: { items: null, targets: null },
+  charts: { items: null, targets: null, week: null },
   dbSort: { key: "name", dir: 1 },
+  catFilter: "all",
+  photo: "",          // data URL of the selected food photo
   ready: false,
 };
+
+let analysis = null;
+let history = [];
+let flags = {};
 
 /* ------------------------------------------------------------------
    3. Server call
    ------------------------------------------------------------------ */
-async function analyseOnServer(mealText) {
+async function analyseOnServer(mealText, imageDataUrl) {
   const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: mealText, people: parseInt(els.peopleCount.value, 10) || 1 }),
+    body: JSON.stringify({
+      text: mealText,
+      image: imageDataUrl || undefined,
+      people: parseInt(els.peopleCount.value, 10) || 1,
+    }),
   });
   let payload;
   try { payload = await res.json(); } catch { payload = {}; }
@@ -176,6 +231,7 @@ async function analyseOnServer(mealText) {
    ------------------------------------------------------------------ */
 const num = (v, d = 0) => (typeof v === "number" && isFinite(v) ? v : parseFloat(v) || d);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const esc = (s) => String(s ?? "").replace(/</g, "&lt;");
 
 function sumItems(items) {
   const keys = ["calories", "protein", "carbs", "fat", "fiber", "sugar", "sodium"];
@@ -225,8 +281,19 @@ function normalizeAnalysis(raw) {
     howOften: String(pa.how_often || "").trim().slice(0, 90),
     bestTime: String(pa.best_time || "").trim().slice(0, 60),
   };
-  return { items, totals, rating, ratingReason: String(raw.rating_reason || ""),
-           notes, negatives, alternatives, portion };
+  const conf = raw.confidence || {};
+  return {
+    items, totals, rating, ratingReason: String(raw.rating_reason || ""),
+    notes, negatives, alternatives, portion,
+    provides: (Array.isArray(raw.provides) ? raw.provides : []).map((s) => String(s).trim().slice(0, 90)).filter(Boolean).slice(0, 4),
+    mainNutrients: (Array.isArray(raw.main_nutrients) ? raw.main_nutrients : []).map((s) => String(s).trim().slice(0, 70)).filter(Boolean).slice(0, 4),
+    allergens: (Array.isArray(raw.allergens) ? raw.allergens : []).map((s) => String(s).toLowerCase().trim()).filter(Boolean).slice(0, 8),
+    category: String(raw.category || "").trim().slice(0, 40),
+    confidence: {
+      level: ["high", "medium", "low"].includes(conf.level) ? conf.level : "medium",
+      note: String(conf.note || "").trim().slice(0, 90),
+    },
+  };
 }
 
 function mergeLocalItems(analysis, mealText) {
@@ -249,6 +316,63 @@ function status(msg, kind = "") {
   els.status.className = "status " + kind;
   els.status.textContent = msg;
   els.status.classList.remove("hidden");
+}
+function compareStatus(msg, kind = "") {
+  els.compareStatus.className = "status " + kind;
+  els.compareStatus.textContent = msg;
+  els.compareStatus.classList.remove("hidden");
+}
+
+function inferEmoji(text) {
+  const t = String(text || "").toLowerCase();
+  for (const [kw, em] of EMOJI_MAP) if (t.includes(kw)) return em;
+  return "🍽";
+}
+
+function setHero(emoji, caption, pop = true) {
+  els.heroEmoji.textContent = emoji;
+  if (caption) els.heroCaption.textContent = caption;
+  if (pop) {
+    els.heroEmoji.classList.remove("pop");
+    void els.heroEmoji.offsetWidth; // restart animation
+    els.heroEmoji.classList.add("pop");
+  }
+}
+
+/* ---------- photo helpers ---------- */
+function fileToDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+function downscaleImage(dataUrl, max = 1024) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width: w, height: h } = img;
+      const scale = Math.min(1, max / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      res(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => res(dataUrl);
+    img.src = dataUrl;
+  });
+}
+function setPhoto(dataUrl) {
+  state.photo = dataUrl || "";
+  els.photoPreviewWrap.classList.toggle("hidden", !dataUrl);
+  if (dataUrl) {
+    els.photoPreview.src = dataUrl;
+    setHero("📷", "Photo ready — add an optional note, then hit Analyse");
+  } else if (!els.mealInput.value.trim()) {
+    setHero("🥗", "Snap it, describe it, or try an example below", false);
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -284,10 +408,101 @@ function renderChips(t) {
     `<span class="chip ${cls}" title="${label}"><span>${icon}</span><b>${val}</b></span>`).join("");
 }
 
+function renderMacroCards(t) {
+  const kcal = Math.max(t.calories, 1);
+  const cards = [
+    ["🔥", Math.round(t.calories), "Calories", Math.round(t.calories / DV.calories * 100) + "% of a 2000 kcal day", "calories"],
+    ["🥩", t.protein.toFixed(1) + " g", "Protein", Math.round(t.protein / DV.protein * 100) + "% DV", "protein"],
+    ["🍞", t.carbs.toFixed(1) + " g", "Carbs", Math.round(t.carbs * 4 / kcal * 100) + "% of calories", "carbs"],
+    ["🧈", t.fat.toFixed(1) + " g", "Fat", Math.round(t.fat * 9 / kcal * 100) + "% of calories", "fat"],
+    ["🌾", t.fiber.toFixed(1) + " g", "Fibre", Math.round(t.fiber / DV.fiber * 100) + "% DV", "fiber"],
+  ];
+  els.macroCards.innerHTML = cards.map(([icon, val, label, sub, cls]) =>
+    `<div class="mcard ${cls}">
+       <div class="mc-icon">${icon}</div>
+       <div class="mc-num">${val}</div>
+       <div class="mc-label">${label}</div>
+       <div class="mc-sub">${sub}</div>
+     </div>`).join("");
+}
+
+function buildScoreFive(a) {
+  const t = a.totals;
+  const checks = [
+    `energy ${Math.round(t.calories)} kcal (${t.calories <= 700 ? "reasonable for a meal" : "heavy for one meal"})`,
+    `protein ${t.protein.toFixed(0)} g (${t.protein >= 20 ? "strong" : t.protein >= 10 ? "ok" : "low"})`,
+    `fibre ${t.fiber.toFixed(1)} g (${t.fiber >= 8 ? "great" : t.fiber >= 4 ? "decent" : "low"})`,
+    `sugar ${t.sugar.toFixed(1)} g (${t.sugar <= 15 ? "low" : t.sugar <= 30 ? "moderate" : "high"})`,
+    `sodium ${Math.round(t.sodium)} mg (${t.sodium <= 800 ? "fine" : t.sodium <= 1500 ? "watch it" : "high"})`,
+  ];
+  return `The AI health rating (${a.rating.toFixed(1)}/10 → ${clamp(Math.round(a.rating / 2 * 10) / 10, 0, 5)}/5) is sanity-checked against 5 measures: ${checks.join("; ")}. ${a.ratingReason}`;
+}
+
+function renderScoreFive(a) {
+  els.scoreFiveVal.textContent = clamp(Math.round(a.rating / 2 * 10) / 10, 0, 5).toFixed(1);
+  els.scoreFiveWhy.textContent = buildScoreFive(a);
+}
+
+function renderDetails(a) {
+  const cells = [];
+  cells.push(`<div class="detail-cell">
+    <h4>Food category</h4>
+    <div class="dc-line">${a.category ? esc(a.category) : "General"}</div>
+  </div>`);
+  cells.push(`<div class="detail-cell">
+    <h4>Main nutrients</h4>
+    <ul>${a.mainNutrients.length ? a.mainNutrients.map((n) => `<li>${esc(n)}</li>`).join("") : "<li>Balanced macros — see cards above</li>"}</ul>
+  </div>`);
+  cells.push(`<div class="detail-cell">
+    <h4>What this meal provides</h4>
+    <ul>${a.provides.length ? a.provides.map((n) => `<li>${esc(n)}</li>`).join("") : "<li>Energy and satiety</li>"}</ul>
+  </div>`);
+  cells.push(`<div class="detail-cell">
+    <h4>Possible allergens</h4>
+    <ul>${a.allergens.length ? a.allergens.map((n) => `<li class="alg">${esc(n)}</li>`).join("") : '<li class="dc-line">None detected 👍</li>'}</ul>
+  </div>`);
+  cells.push(`<div class="detail-cell">
+    <h4>How confident is the estimate?</h4>
+    <span class="conf-pill ${a.confidence.level}">${a.confidence.level}</span>
+    <div class="dc-line">${a.confidence.note ? esc(a.confidence.note) : "Typical estimate"}</div>
+  </div>`);
+  els.detailsGrid.innerHTML = cells.join("");
+}
+
+function smartSuggestions(a) {
+  const t = a.totals, out = [];
+  const kcal = Math.max(t.calories, 1);
+  const dvPct = (v, dv) => (v / dv) * 100;
+  if (t.calories > 300 && t.protein < kcal / 25)
+    out.push(["🥩", "<b>Boost protein</b> — add dal, paneer, eggs, curd or grilled chicken to stay full longer."]);
+  if (t.fiber < DV.fiber * 0.25)
+    out.push(["🌾", "<b>Add fibre</b> — a side of salad, sautéed veggies or a whole fruit helps digestion."]);
+  if (dvPct(t.sugar, DV.sugar) > 30)
+    out.push(["🍬", `<b>Sugar is high</b> — ${Math.round(t.sugar)} g here. Skip the sweet drink or dessert next time.`]);
+  if (dvPct(t.sodium, DV.sodium) > 40)
+    out.push(["🧂", `<b>Sodium alert</b> — this covers ${Math.round(dvPct(t.sodium, DV.sodium))}% of a day's salt cap. Go easy on pickles/papad today.`]);
+  if (t.calories > 800)
+    out.push(["🔥", "<b>Heavy meal</b> — consider a smaller portion or a 15-minute walk after eating."]);
+  if (t.fat * 9 / kcal > 0.4)
+    out.push(["🧈", "<b>Fat-heavy</b> — grilled, steamed or tandoori versions would cut the oil."]);
+  if (t.calories > 0 && t.calories < 250 && a.rating >= 6)
+    out.push(["🥜", "<b>Light meal</b> — pair it with nuts or a banana if you're still hungry."]);
+  if (!out.length || a.rating >= 8)
+    out.push(["💪", "<b>Great balance</b> — this meal hits the macros nicely. Keep it up!"]);
+  return out.slice(0, 5);
+}
+
+function renderSmart(a) {
+  const tips = smartSuggestions(a);
+  els.smartBox.classList.remove("hidden");
+  els.smartList.innerHTML = tips.map(([icon, html]) =>
+    `<div class="smart-item"><div class="si-icon">${icon}</div><div class="si-body">${html}</div></div>`).join("");
+}
+
 function renderNotes(a) {
   const notes = [...a.notes];
   if (a.ratingReason) notes.unshift(a.ratingReason);
-  els.notes.innerHTML = notes.map((n) => `<div>${n.replace(/</g, "&lt;")}</div>`).join("");
+  els.notes.innerHTML = notes.map((n) => `<div>${esc(n)}</div>`).join("");
 }
 
 function renderNegatives(negatives) {
@@ -298,8 +513,7 @@ function renderNegatives(negatives) {
     return;
   }
   els.negativesBox.classList.remove("hidden");
-  els.negativesList.innerHTML = list
-    .map((n) => `<div>${String(n).replace(/</g, "&lt;")}</div>`).join("");
+  els.negativesList.innerHTML = list.map((n) => `<div>${esc(n)}</div>`).join("");
 }
 
 function renderAlternatives(alts) {
@@ -310,13 +524,11 @@ function renderAlternatives(alts) {
     return;
   }
   els.altBox.classList.remove("hidden");
-  els.altList.innerHTML = list
-    .map((alt) => `
+  els.altList.innerHTML = list.map((alt) => `
       <div class="alt-card">
-        <div class="alt-name">🥗 ${String(alt.name).replace(/</g, "&lt;")}</div>
-        <div class="alt-why">${String(alt.why || "").replace(/</g, "&lt;")}</div>
-      </div>`)
-    .join("");
+        <div class="alt-name">🥗 ${esc(alt.name)}</div>
+        <div class="alt-why">${esc(alt.why || "")}</div>
+      </div>`).join("");
 }
 
 function renderPortion() {
@@ -337,7 +549,7 @@ function renderPortion() {
         <div class="pt-icon">${icon}</div>
         <div>
           <div class="pt-label">${label}</div>
-          <div class="pt-val">${String(val).replace(/</g, "&lt;")}</div>
+          <div class="pt-val">${esc(val)}</div>
         </div>
       </div>`)
     .join("") +
@@ -351,7 +563,7 @@ function renderPortion() {
 function renderItemsTable(items, totals) {
   const rows = items.map((it) => `
     <tr>
-      <td>${it.name.replace(/</g, "&lt;")}</td>
+      <td>${esc(it.name)}</td>
       <td class="num">${Math.round(it.grams)} g</td>
       <td class="num">${it.calories.toFixed(0)}</td>
       <td class="num">${it.protein.toFixed(1)}</td>
@@ -382,25 +594,35 @@ function renderItemsTable(items, totals) {
     </div>`;
 }
 
-let analysis = null;
-
-function renderAll(analysisData) {
-  analysis = analysisData;
+function renderAll(a, meta = {}) {
+  analysis = a;
   els.result.classList.remove("hidden");
-  renderScore(analysis.rating);
-  renderChips(analysis.totals);
-  renderNotes(analysis);
-  renderNegatives(analysis.negatives);
-  renderAlternatives(analysis.alternatives);
+  renderScore(a.rating);
+  renderChips(a.totals);
+  renderMacroCards(a.totals);
+  renderScoreFive(a);
+  renderDetails(a);
+  renderSmart(a);
+  renderNotes(a);
+  renderNegatives(a.negatives);
+  renderAlternatives(a.alternatives);
   renderPortion();
-  renderItemsTable(analysis.items, analysis.totals);
-  updateCharts(analysis);
+  renderItemsTable(a.items, a.totals);
+  updateCharts(a);
+  setHero(meta.emoji || "🍽", `${a.category || "Meal"} · ${Math.round(a.totals.calories)} kcal · ${a.confidence.level} confidence`, false);
+  addHistory({
+    ts: Date.now(),
+    text: meta.inputText || a.items.map((i) => i.name).join(", "),
+    emoji: meta.emoji || inferEmoji(a.items.map((i) => i.name).join(" ")),
+    rating: a.rating,
+    kcal: Math.round(a.totals.calories),
+    source: meta.source || "text",
+  });
 }
 
 /* ------------------------------------------------------------------
-   6. Charts — one doughnut (energy by item) + one bar (vs daily targets)
+   6. Charts — doughnut + targets + 7-day history
    ------------------------------------------------------------------ */
-// Dashed "100 % of target" guide line for the bar chart
 const targetLinePlugin = {
   id: "targetLine",
   afterDatasetsDraw(chart) {
@@ -439,7 +661,7 @@ function baseOptions() {
 }
 
 function emptyData() {
-  return { labels: ["No data yet"], datasets: [{ data: [0], backgroundColor: ["#1d3d29"], borderWidth: 0 }] };
+  return { labels: ["No data yet"], datasets: [{ label: "", data: [0], backgroundColor: ["#1d3d29"], borderWidth: 0 }] };
 }
 
 function ensureCharts() {
@@ -463,6 +685,34 @@ function ensureCharts() {
       },
     },
     plugins: [targetLinePlugin],
+  });
+  state.charts.week = new Chart($("weekChart"), {
+    type: "bar",
+    data: {
+      labels: [],
+      datasets: [
+        { label: "kcal eaten", data: [], backgroundColor: "rgba(52,211,153,.55)",
+          hoverBackgroundColor: "#34d399", borderRadius: 8, maxBarThickness: 38, yAxisID: "y" },
+        { type: "line", label: "avg health score", data: [], borderColor: "#a3e635",
+          backgroundColor: "#a3e635", tension: .35, pointRadius: 3, borderWidth: 2, yAxisID: "y1" },
+      ],
+    },
+    options: {
+      ...baseOptions(),
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#9cc3ac", font: { size: 11 } } },
+        y: {
+          position: "left", beginAtZero: true, grid: CHART_GRID,
+          ticks: { color: "#9cc3ac", font: { size: 11 } },
+          title: { display: true, text: "kcal", color: "#9cc3ac", font: { size: 10 } },
+        },
+        y1: {
+          position: "right", min: 0, max: 10, grid: { drawOnChartArea: false },
+          ticks: { color: "#9cc3ac", font: { size: 11 }, stepSize: 2 },
+          title: { display: true, text: "score", color: "#9cc3ac", font: { size: 10 } },
+        },
+      },
+    },
   });
 }
 
@@ -520,19 +770,147 @@ function updateCharts(a) {
   bar.update();
 }
 
+function updateWeekChart() {
+  ensureCharts();
+  const chart = state.charts.week;
+  const days = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const labels = days.map((d) => d.toLocaleDateString([], { weekday: "short" }));
+  const kcal = days.map((d) =>
+    history.filter((h) => new Date(h.ts) >= d && new Date(h.ts) < new Date(d.getTime() + 86400000))
+           .reduce((s, h) => s + (h.kcal || 0), 0));
+  const scores = days.map((d) => {
+    const dayMeals = history.filter((h) => new Date(h.ts) >= d && new Date(h.ts) < new Date(d.getTime() + 86400000));
+    return dayMeals.length ? dayMeals.reduce((s, h) => s + (h.rating || 0), 0) / dayMeals.length : null;
+  });
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = kcal;
+  chart.data.datasets[1].data = scores;
+  chart.update();
+
+  const logged = history.filter((h) => new Date(h.ts) >= days[0]);
+  const totalK = logged.reduce((s, h) => s + (h.kcal || 0), 0);
+  els.weekSummary.textContent = logged.length
+    ? `${logged.length} meal${logged.length > 1 ? "s" : ""} logged in the last 7 days — averaging ${Math.round(totalK / 7)} kcal/day.`
+    : "Log meals from the Analyser to see your week here";
+}
+
 /* ------------------------------------------------------------------
-   7. Analyse flow
+   7. History, streaks & badges (localStorage)
+   ------------------------------------------------------------------ */
+function loadHistory() {
+  try { history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  catch { history = []; }
+  if (!Array.isArray(history)) history = [];
+  try { flags = JSON.parse(localStorage.getItem(FLAGS_KEY)) || {}; }
+  catch { flags = {}; }
+}
+function saveHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 60)));
+    localStorage.setItem(FLAGS_KEY, JSON.stringify(flags));
+  } catch { /* private mode etc. */ }
+}
+function addHistory(entry) {
+  history.unshift(entry);
+  if (history.length > 60) history.length = 60;
+  saveHistory();
+  renderStats();
+  renderHistory();
+  updateWeekChart();
+}
+function dayKey(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function calcStreak() {
+  const days = new Set(history.map((h) => dayKey(h.ts)));
+  let streak = 0;
+  const d = new Date();
+  if (!days.has(dayKey(d.getTime()))) d.setDate(d.getDate() - 1);
+  while (days.has(dayKey(d.getTime()))) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
+}
+function renderStats() {
+  const streak = calcStreak();
+  els.streakDays.textContent = streak;
+  els.totalMeals.textContent = history.length;
+  els.avgScore.textContent = history.length
+    ? (history.reduce((s, h) => s + (h.rating || 0), 0) / history.length).toFixed(1)
+    : "–";
+  const weekAgo = Date.now() - 7 * 86400000;
+  els.weekKcal.textContent = history.filter((h) => h.ts >= weekAgo)
+    .reduce((s, h) => s + (h.kcal || 0), 0);
+}
+function fmtWhen(ts) {
+  const d = new Date(ts), now = new Date();
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (sameDay(d, now)) return `Today ${time}`;
+  if (sameDay(d, yest)) return `Yesterday ${time}`;
+  return d.toLocaleDateString([], { day: "numeric", month: "short" }) + ` ${time}`;
+}
+function renderHistory() {
+  if (!history.length) {
+    els.historyList.innerHTML = `<div class="muted small">No meals yet — analyse something tasty above!</div>`;
+    return;
+  }
+  els.historyList.innerHTML = history.map((h) => {
+    const cls = h.rating >= 7 ? "good" : h.rating >= 5 ? "mid" : "bad";
+    const src = h.source === "photo" ? " 📷" : "";
+    return `<div class="h-item">
+      <span class="h-emoji">${h.emoji || "🍽"}</span>
+      <span class="h-text">${esc(String(h.text || "").slice(0, 90))}${src}
+        <span class="h-when">${fmtWhen(h.ts)}</span></span>
+      <span class="h-kcal">${h.kcal || 0} kcal</span>
+      <span class="h-score ${cls}">${(h.rating ?? 0).toFixed(1)}/10</span>
+    </div>`;
+  }).join("");
+}
+function renderBadges() {
+  const earned = {
+    first: history.length >= 1,
+    m5: history.length >= 5,
+    m15: history.length >= 15,
+    streak3: calcStreak() >= 3,
+    green: history.some((h) => (h.rating || 0) >= 8),
+    compare: !!flags.compare,
+  };
+  els.badgesRow.innerHTML = BADGES.map((b) =>
+    `<div class="badge ${earned[b.id] ? "earned" : ""}" title="${b.desc}">
+       <span class="b-icon">${b.icon}</span>${b.name}
+     </div>`).join("");
+}
+
+/* ------------------------------------------------------------------
+   8. Analyse flow
    ------------------------------------------------------------------ */
 async function analyse() {
   const text = els.mealInput.value.trim();
-  if (!text) { status("Type a food or meal first, e.g. \"2 chapati + dal + curd\".", "error"); return; }
+  const img = state.photo;
+  if (!text && !img) {
+    status("Type a food or meal first, e.g. \"2 chapati + dal + curd\" — or pick a photo.", "error");
+    return;
+  }
 
   els.analyseBtn.disabled = true;
-  status("Crunching nutrients…", "loading");
+  status(img ? "Looking at your photo…" : "Crunching nutrients…", "loading");
   try {
-    const raw = await analyseOnServer(text);
-    renderAll(mergeLocalItems(normalizeAnalysis(raw), text));
+    const raw = await analyseOnServer(text, img);
+    let a = normalizeAnalysis(raw);
+    if (!img) a = mergeLocalItems(a, text);
+    renderAll(a, {
+      emoji: img ? "📷" : inferEmoji(text),
+      inputText: text,
+      source: img ? "photo" : "text",
+    });
     status(`Analysed ${analysis.items.length} item(s) · ${Math.round(analysis.totals.calories)} kcal · rated ${analysis.rating.toFixed(1)}/10`, "ok");
+    if (img) setPhoto(""); // photo consumed — allow text analysis next
   } catch (err) {
     status("⚠ " + (err?.message || "Something went wrong."), "error");
   } finally {
@@ -548,19 +926,163 @@ els.clearBtn.addEventListener("click", () => {
   els.mealInput.value = "";
   els.status.classList.add("hidden");
   els.result.classList.add("hidden");
+  setPhoto("");
+  setHero("🥗", "Snap it, describe it, or try an example below", false);
 });
 els.peopleCount.addEventListener("change", () => {
   if (analysis) renderPortion();  // re-split guidance for the new head-count
 });
 
+/* ---------- example chips ---------- */
+els.exampleRow.addEventListener("click", (e) => {
+  const btn = e.target.closest(".example-chip");
+  if (!btn) return;
+  els.mealInput.value = btn.dataset.text;
+  setHero(btn.dataset.emoji, `Example loaded: ${btn.textContent.trim()} — analysing…`);
+  analyse();
+});
+
+/* ---------- photo input ---------- */
+els.photoInput.addEventListener("change", async () => {
+  const file = els.photoInput.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await downscaleImage(await fileToDataUrl(file));
+    setPhoto(dataUrl);
+  } catch {
+    status("⚠ Could not read that image — try another one.", "error");
+  }
+  els.photoInput.value = "";
+});
+els.photoRemove.addEventListener("click", () => setPhoto(""));
+
 /* ------------------------------------------------------------------
-   8. Offline food table (search + sort)
+   9. Compare two foods
    ------------------------------------------------------------------ */
+async function runCompare() {
+  const a = els.compareA.value.trim(), b = els.compareB.value.trim();
+  if (!a || !b) { compareStatus("Enter both foods to compare.", "error"); return; }
+
+  els.compareBtn.disabled = true;
+  compareStatus("Comparing…", "loading");
+  try {
+    const [ra, rb] = await Promise.all([analyseOnServer(a), analyseOnServer(b)]);
+    const na = normalizeAnalysis(ra), nb = normalizeAnalysis(rb);
+    renderCompare(na, nb, a, b);
+    flags.compare = true;
+    saveHistory();
+    renderBadges();
+    compareStatus("Comparison ready.", "ok");
+  } catch (err) {
+    compareStatus("⚠ " + (err?.message || "Something went wrong."), "error");
+  } finally {
+    els.compareBtn.disabled = false;
+  }
+}
+
+function cmpTitle(a, fallback) {
+  return a.items.map((i) => i.name).slice(0, 2).join(" + ") || fallback.slice(0, 30);
+}
+function renderCompare(na, nb, labelA, labelB) {
+  const tA = na.totals, tB = nb.totals;
+  const titleA = cmpTitle(na, labelA), titleB = cmpTitle(nb, labelB);
+  const winner = na.rating === nb.rating ? null : na.rating > nb.rating ? "a" : "b";
+
+  const rows = [
+    ["🔥 Calories", Math.round(tA.calories), Math.round(tB.calories), "kcal", true],
+    ["🥩 Protein", tA.protein.toFixed(1), tB.protein.toFixed(1), "g", false],
+    ["🍞 Carbs", tA.carbs.toFixed(1), tB.carbs.toFixed(1), "g", true],
+    ["🧈 Fat", tA.fat.toFixed(1), tB.fat.toFixed(1), "g", true],
+    ["🌾 Fibre", tA.fiber.toFixed(1), tB.fiber.toFixed(1), "g", false],
+    ["🍬 Sugar", tA.sugar.toFixed(1), tB.sugar.toFixed(1), "g", true],
+    ["🧂 Sodium", Math.round(tA.sodium), Math.round(tB.sodium), "mg", true],
+  ];
+  const mark = (va, vb, lowerBetter) => {
+    const fa = parseFloat(va), fb = parseFloat(vb);
+    if (fa === fb) return ["", ""];
+    const aWins = lowerBetter ? fa < fb : fa > fb;
+    return aWins ? ["good", "bad"] : ["bad", "good"];
+  };
+
+  const built = rows.map(([label, va, vb, unit, lb]) => {
+    const [ca, cb] = mark(va, vb, lb);
+    return { label, a: va, b: vb, unit, ca, cb };
+  });
+  const cardHtml = (title, sub, side, rating, isWinner) => `
+    <div class="cmp-card ${isWinner ? "winner" : ""}">
+      <div class="cmp-title">${isWinner ? "🏆 " : ""}${esc(title)}</div>
+      <div class="cmp-sub">${esc(sub)}</div>
+      <div class="cmp-rows">
+        ${built.map((r) => `<div class="cmp-row"><span>${r.label}</span><b class="${side === "a" ? r.ca : r.cb}">${r[side]} ${r.unit}</b></div>`).join("")}
+      </div>
+      <div class="cmp-rating">Health score: <b>${rating.toFixed(1)} / 10</b></div>
+    </div>`;
+
+  els.compareCards.innerHTML =
+    cardHtml(titleA, labelA.slice(0, 60), "a", na.rating, winner === "a") +
+    cardHtml(titleB, labelB.slice(0, 60), "b", nb.rating, winner === "b");
+
+  // Verdict
+  const dKcal = Math.round(tA.calories - tB.calories);
+  const dProtein = tA.protein - tB.protein;
+  const dFiber = tA.fiber - tB.fiber;
+  const dSugar = tA.sugar - tB.sugar;
+  els.compareVerdict.classList.remove("hidden", "tie");
+  if (!winner) {
+    els.compareVerdict.classList.add("tie");
+    els.compareVerdict.innerHTML =
+      `🤝 <b>It's a tie!</b> Both score ${(na.rating).toFixed(1)}/10 — pick whichever you're craving, or add a side of salad to either.`;
+  } else {
+    const w = winner === "a" ? { title: titleA, r: na.rating, other: titleB, ro: nb.rating }
+                             : { title: titleB, r: nb.rating, other: titleA, ro: na.rating };
+    const sgn = (v, u, better) => {
+      const n = Math.abs(v);
+      if (n < 0.5 && u !== "%") return "";
+      const dir = (better ? v > 0 : v < 0) ? "more" : "less";
+      return `${n.toFixed(u === "mg" ? 0 : 1)}${u === "mg" ? "" : " g"} ${dir} ${u}`;
+    };
+    const bits = [
+      dKcal !== 0 ? `${Math.abs(dKcal)} kcal ${((winner === "a" ? dKcal < 0 : dKcal > 0) ? "fewer" : "more")} calories` : "",
+      Math.abs(dProtein) >= 0.5 ? `${Math.abs(dProtein).toFixed(1)} g ${((winner === "a" ? dProtein > 0 : dProtein < 0) ? "more" : "less")} protein` : "",
+      Math.abs(dFiber) >= 0.5 ? `${Math.abs(dFiber).toFixed(1)} g ${((winner === "a" ? dFiber > 0 : dFiber < 0) ? "more" : "less")} fibre` : "",
+      Math.abs(dSugar) >= 0.5 ? `${Math.abs(dSugar).toFixed(1)} g ${((winner === "a" ? dSugar < 0 : dSugar > 0) ? "less" : "more")} sugar` : "",
+    ].filter(Boolean).slice(0, 3);
+    els.compareVerdict.innerHTML =
+      `🏆 <b>${esc(w.title)}</b> looks like the healthier pick — it scores <b>${w.r.toFixed(1)}/10</b> vs ${w.ro.toFixed(1)}/10` +
+      (bits.length ? `, with ${bits.join(", ")}.` : ".");
+  }
+  els.compareWrap.classList.remove("hidden");
+}
+
+els.compareBtn.addEventListener("click", runCompare);
+els.compareSwapBtn.addEventListener("click", () => {
+  const t = els.compareA.value;
+  els.compareA.value = els.compareB.value;
+  els.compareB.value = t;
+});
+
+/* ------------------------------------------------------------------
+   10. Offline food table (search + sort + category chips)
+   ------------------------------------------------------------------ */
+function renderCatChips() {
+  const cats = ["all", ...new Set(FOODS.map((f) => f.category))];
+  els.catChips.innerHTML = cats.map((c) =>
+    `<button class="cat-chip ${c === state.catFilter ? "active" : ""}" data-cat="${c}">${c}</button>`).join("");
+}
+els.catChips.addEventListener("click", (e) => {
+  const btn = e.target.closest(".cat-chip");
+  if (!btn) return;
+  state.catFilter = btn.dataset.cat;
+  renderCatChips();
+  renderDB();
+});
+
 function renderDB() {
   const q = els.dbSearch.value.trim().toLowerCase();
   let rows = FOODS;
+  if (state.catFilter !== "all") rows = rows.filter((f) => f.category === state.catFilter);
   if (q) {
-    rows = FOODS.filter((f) =>
+    rows = rows.filter((f) =>
       f.name.toLowerCase().includes(q) || f.category.includes(q) || f.tags.includes(q));
   }
   const { key, dir } = state.dbSort;
@@ -588,9 +1110,17 @@ document.querySelectorAll("#dbTable th[data-sort]").forEach((th) => {
   });
 });
 els.dbSearch.addEventListener("input", renderDB);
+els.clearHistoryBtn.addEventListener("click", () => {
+  if (!history.length) return;
+  if (!confirm("Delete all logged meals? This cannot be undone.")) return;
+  history = [];
+  flags = {};
+  saveHistory();
+  renderStats(); renderHistory(); renderBadges(); updateWeekChart();
+});
 
 /* ------------------------------------------------------------------
-   9. Init
+   11. Init
    ------------------------------------------------------------------ */
 async function checkServer() {
   try {
@@ -604,6 +1134,12 @@ async function checkServer() {
   }
 }
 
+loadHistory();
 checkServer();
 renderDB();
+renderCatChips();
 ensureCharts();
+renderStats();
+renderHistory();
+renderBadges();
+updateWeekChart();

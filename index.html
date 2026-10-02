@@ -20,7 +20,9 @@
   </div>
   <nav class="nav">
     <a href="#analyser" class="nav-link">Analyser</a>
+    <a href="#compare" class="nav-link">Compare</a>
     <a href="#dashboard" class="nav-link">Dashboard</a>
+    <a href="#history" class="nav-link">History</a>
     <a href="#database" class="nav-link">Foods</a>
   </nav>
 </header>
@@ -29,7 +31,31 @@
   <!-- ============ ANALYSER ============ -->
   <section id="analyser" class="card panel">
     <h2>🍽 Analyse your meal</h2>
+
+    <div class="food-hero">
+      <div id="heroEmoji" class="hero-emoji">🥗</div>
+      <p id="heroCaption" class="hero-caption">Snap it, describe it, or try an example below</p>
+    </div>
+
+    <div class="example-row" id="exampleRow">
+      <button class="example-chip" data-emoji="🍛" data-text="1 plate Indian thali: 2 chapati, dal, jeera rice, sabzi, curd, salad">🍛 Indian Thali</button>
+      <button class="example-chip" data-emoji="🥗" data-text="Large garden salad with lettuce, cucumber, tomato, chickpeas, feta cheese and olive oil dressing">🥗 Salad</button>
+      <button class="example-chip" data-emoji="🍕" data-text="2 slices of cheese pizza and one glass of cola">🍕 Pizza</button>
+      <button class="example-chip" data-emoji="🍳" data-text="Hearty breakfast: 2 eggs omelette, 2 slices whole wheat toast with butter, 1 cup milk tea with sugar">🍳 Breakfast</button>
+    </div>
+
     <p class="muted">Describe a food or a whole meal — amounts in grams help. e.g. <em>"2 chapati + 1 bowl dal + 100g curd"</em></p>
+
+    <label class="photo-btn btn" for="photoInput">
+      📷 Analyse a food photo
+      <input type="file" id="photoInput" accept="image/*" hidden>
+    </label>
+    <div id="photoPreviewWrap" class="photo-preview hidden">
+      <img id="photoPreview" alt="Selected food">
+      <button id="photoRemove" class="photo-remove" title="Remove photo">✕</button>
+      <span class="photo-note muted small">Photo will be analysed visually — add a note to improve accuracy.</span>
+    </div>
+
     <textarea id="mealInput" rows="3" placeholder="e.g. 2 chapati, 150 g rajma, 100 g rice, 1 tsp ghee"></textarea>
     <div class="row">
       <button id="analyseBtn" class="btn primary big">✨ Analyse</button>
@@ -67,6 +93,28 @@
           <div id="notes" class="notes"></div>
         </div>
       </div>
+
+      <div id="macroCards" class="cards5"></div>
+
+      <div class="detail-grid">
+        <div id="scoreFiveBox" class="insight-box score5">
+          <h3>⭐ Nutrition score</h3>
+          <div class="score5-row">
+            <div class="score5-num"><span id="scoreFiveVal">–</span><small>/ 5</small></div>
+            <p id="scoreFiveWhy" class="muted small"></p>
+          </div>
+        </div>
+        <div id="mealDetails" class="insight-box details">
+          <h3>🧾 About this meal</h3>
+          <div id="detailsGrid" class="details-grid"></div>
+        </div>
+      </div>
+
+      <div id="smartBox" class="insight-box smart hidden">
+        <h3>🧠 Smart suggestions</h3>
+        <div id="smartList" class="smart-list"></div>
+      </div>
+
       <div id="negativesBox" class="insight-box negatives hidden">
         <h3>⚠ Watch out for</h3>
         <div id="negativesList" class="neg-list"></div>
@@ -80,6 +128,32 @@
         <div id="portionGrid" class="portion-grid"></div>
       </div>
       <div id="itemsTableWrap"></div>
+    </div>
+  </section>
+
+  <!-- ============ COMPARE ============ -->
+  <section id="compare" class="card panel">
+    <h2>⚖ Compare two foods</h2>
+    <p class="muted">Put any two foods or meals head-to-head — values, scores and a verdict.</p>
+    <div class="compare-grid">
+      <div class="compare-col">
+        <span class="vs-tag a">A</span>
+        <textarea id="compareA" rows="2" placeholder="e.g. masala dosa"></textarea>
+      </div>
+      <div class="compare-vs">VS</div>
+      <div class="compare-col">
+        <span class="vs-tag b">B</span>
+        <textarea id="compareB" rows="2" placeholder="e.g. 2 idli + sambar"></textarea>
+      </div>
+    </div>
+    <div class="row">
+      <button id="compareBtn" class="btn primary big">⚖ Compare</button>
+      <button id="compareSwapBtn" class="btn ghost">⇄ Swap</button>
+    </div>
+    <div id="compareStatus" class="status hidden"></div>
+    <div id="compareWrap" class="compare-results hidden">
+      <div id="compareCards" class="compare-cards"></div>
+      <div id="compareVerdict" class="verdict hidden"></div>
     </div>
   </section>
 
@@ -98,11 +172,37 @@
         <div class="chart-box"><canvas id="targetsChart"></canvas></div>
       </div>
     </div>
+    <div class="charts-grid one">
+      <div class="card chart-card">
+        <h3>📅 Last 7 days — calories &amp; health score</h3>
+        <p class="muted small" id="weekSummary">Log meals from the Analyser to see your week here</p>
+        <div class="chart-box"><canvas id="weekChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section id="history" class="card panel">
+    <div class="history-head">
+      <h2>🕘 Meal history &amp; streaks</h2>
+      <button id="clearHistoryBtn" class="btn ghost small-btn">Clear history</button>
+    </div>
+    <div class="stat-row">
+      <div class="stat-tile"><span class="stat-num" id="streakDays">0</span><span class="stat-label">🔥 day streak</span></div>
+      <div class="stat-tile"><span class="stat-num" id="totalMeals">0</span><span class="stat-label">🗂 meals logged</span></div>
+      <div class="stat-tile"><span class="stat-num" id="avgScore">–</span><span class="stat-label">⭐ avg score /10</span></div>
+      <div class="stat-tile"><span class="stat-num" id="weekKcal">0</span><span class="stat-label">🔥 kcal this week</span></div>
+    </div>
+    <h3 class="badge-title">🏅 Achievements</h3>
+    <div id="badgesRow" class="badges-row"></div>
+    <h3 class="badge-title">Logged meals</h3>
+    <div id="historyList" class="history-list"></div>
   </section>
 
   <!-- ============ DATABASE ============ -->
   <section id="database" class="panel">
     <h2>🗂 Offline food table <span class="muted small" id="dbCount"></span></h2>
+    <div id="catChips" class="cat-chips"></div>
     <input id="dbSearch" class="search" type="search" placeholder="Search food, category or tag… (e.g. dal, high fibre, fried)">
     <div class="table-wrap card">
       <table id="dbTable">

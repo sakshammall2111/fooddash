@@ -1,9 +1,10 @@
 // Vercel serverless function: POST /api/analyse
-// Forwards the meal text to the Groq API. The key comes from the
-// GROQ_API_KEY environment variable (set in the Vercel dashboard) and
-// never reaches the browser.
+// Forwards the meal text (or a food photo) to the Groq API. The key comes
+// from the GROQ_API_KEY environment variable (set in the Vercel dashboard)
+// and never reaches the browser.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 const SYSTEM_PROMPT = `You are a precise nutrition analyst. The user describes a meal or food.
 Estimate realistic quantities (in grams/ml) and nutrition values for the WHOLE stated quantity, not per 100 g.
@@ -26,7 +27,12 @@ Reply with ONLY a JSON object, no markdown, matching exactly:
     "calories": 240,
     "how_often": "e.g. 2-3 times a week",
     "best_time": "e.g. lunch"
-  }
+  },
+  "provides": ["what the meal offers the body, e.g. steady energy from complex carbs", "supports muscle recovery"],
+  "main_nutrients": ["protein 18 g (36% of a day)", "iron 4 mg"],
+  "allergens": ["milk", "gluten"],
+  "category": "Indian main course",
+  "confidence": {"level": "high", "note": "common dish with well-known values"}
 }
 Rules:
 - 4-10 items max; merge tiny condiments into the dish they belong to.
@@ -34,9 +40,18 @@ Rules:
 - notes: 3-6 strings, max 90 chars each (energy density, macro balance, fibre, sugar, sodium, what to add).
 - negatives: 2-5 short strings (max 80 chars each) calling out the UNHEALTHY aspects of the meal: deep-fried, high saturated fat, added sugar, refined carbs, excess sodium, ultra-processed, low fibre, oversized portion, etc. Be specific with numbers when useful (e.g. "1 180 mg sodium is 68% of a day's cap"). If the meal is genuinely very healthy, return an empty array [].
 - alternatives: 2-4 objects; each a SIMILAR but healthier food or swap for the same craving/dish (e.g. fried samosa -> baked vegetable samosa or sprout chaat; white rice -> brown rice or quinoa; sugary cola -> sparkling water with lime). Make the options genuinely varied (different dishes or preparations, not the same dish with one word changed). "why" is one short sentence (max 90 chars) on what makes it better. Keep names short.
-- portion_advice: portion guidance for ONE person. how_much = realistic household measure to eat in one sitting (e.g. \"2 chapati + 1 katori dal\"); calories = kcal of that recommended portion; how_often = how frequently it is OK to eat this (\"daily\", \"4-5 times a week\", \"once a week\", \"occasionally as a treat\"); best_time = best time of day (breakfast/lunch/evening snack/avoid late night). Keep strings short (max 80 chars).
+- portion_advice: portion guidance for ONE person. how_much = realistic household measure to eat in one sitting (e.g. "2 chapati + 1 katori dal"); calories = kcal of that recommended portion; how_often = how frequently it is OK to eat this ("daily", "4-5 times a week", "once a week", "occasionally as a treat"); best_time = best time of day (breakfast/lunch/evening snack/avoid late night). Keep strings short (max 80 chars).
+- provides: 2-4 short strings (max 80 chars each) on what the meal offers the body: energy type, satiety, muscle, digestion, vitamins/minerals.
+- main_nutrients: 2-4 strings (max 60 chars each), the stand-out nutrients WITH amounts, e.g. "protein 18 g (36% of a day)" or "vitamin C 45 mg".
+- allergens: ONLY from this list when present: milk, eggs, wheat/gluten, peanuts, tree nuts, soy, fish, shellfish, sesame, mustard. Empty array if none.
+- category: ONE short category, India-aware, e.g. "Indian breakfast", "Indian main course", "Indian street food", "Indian dessert", "fast food", "beverage", "salad", "global dish".
+- confidence: level "high", "medium" or "low" + "note" (max 70 chars) explaining it (standard dish = high; vague description or mixed photo = lower).
 - grams/ml must be plausible for a single serving of the described meal.
-- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": [], "negatives": [], "alternatives": [], "portion_advice": {}}.`;
+- If the description is not food, return {"items": [], "rating": 0, "rating_reason": "not food", "notes": [], "negatives": [], "alternatives": [], "portion_advice": {}, "provides": [], "main_nutrients": [], "allergens": [], "category": "", "confidence": {}}.`;
+
+const VISUAL_PROMPT = `Identify every visible food/drink item in this photo and estimate its portion in grams/ml.
+Then analyse the WHOLE meal with the same nutrition JSON contract described in the system prompt.
+If the image contains no food, return the not-food JSON.`;
 
 function json(res, code, payload) {
   res.statusCode = code;
@@ -59,9 +74,11 @@ module.exports = async (req, res) => {
     return json(res, 400, { error: "Invalid JSON body." });
   }
 
-  const text = String(body.text || "").trim();
-  if (!text) return json(res, 400, { error: "Meal text is required." });
-  if (text.length > 2000) return json(res, 400, { error: "Meal description too long (max 2000 chars)." });
+  const text = String(body.text || "").trim().slice(0, 2000);
+  const image = typeof body.image === "string" && body.image.startsWith("data:image/") ? body.image : "";
+  if (!text && !image) return json(res, 400, { error: "Describe the meal or add a photo." });
+  if (text.length >= 2000) return json(res, 400, { error: "Meal description too long (max 2000 chars)." });
+  if (image.length > 3_500_000) return json(res, 400, { error: "Photo too large — try another image." });
 
   const apiKey = process.env.GROQ_API_KEY || "";
   if (!apiKey) {
@@ -70,7 +87,18 @@ module.exports = async (req, res) => {
     });
   }
 
-  const model = process.env.MEALLENS_MODEL || DEFAULT_MODEL;
+  const isVision = !!image;
+  const model = isVision
+    ? (process.env.MEALLENS_VISION_MODEL || DEFAULT_VISION_MODEL)
+    : (process.env.MEALLENS_MODEL || DEFAULT_MODEL);
+
+  const userContent = isVision
+    ? [
+        { type: "text", text: VISUAL_PROMPT + (text ? `\nUser note: ${text}` : "") },
+        { type: "image_url", image_url: { url: image } },
+      ]
+    : "Analyse this meal:\n" + text;
+
   try {
     const groqRes = await fetch(GROQ_URL, {
       method: "POST",
@@ -85,7 +113,7 @@ module.exports = async (req, res) => {
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: "Analyse this meal:\n" + text },
+          { role: "user", content: userContent },
         ],
       }),
     });
@@ -93,7 +121,7 @@ module.exports = async (req, res) => {
     if (!groqRes.ok) {
       let detail = "";
       try { detail = (await groqRes.json())?.error?.message || ""; } catch { /* ignore */ }
-      return json(res, 502, { error: `Groq API error ${groqRes.status}${detail ? " - " + detail : ""}` });
+      return json(res, 502, { error: `AI API error ${groqRes.status}${detail ? " - " + detail : ""}` });
     }
 
     const data = await groqRes.json();
