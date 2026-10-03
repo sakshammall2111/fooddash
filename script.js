@@ -193,6 +193,7 @@ const els = {
   streakDays: $("streakDays"), totalMeals: $("totalMeals"), avgScore: $("avgScore"), weekKcal: $("weekKcal"),
   badgesRow: $("badgesRow"), historyList: $("historyList"), clearHistoryBtn: $("clearHistoryBtn"),
   catChips: $("catChips"),
+  foodModal: $("foodModal"), foodModalCard: $("foodModalCard"), foodModalBack: $("foodModalBack"),
 };
 
 const state = {
@@ -1062,12 +1063,126 @@ els.compareSwapBtn.addEventListener("click", () => {
 });
 
 /* ------------------------------------------------------------------
-   10. Offline food table (search + sort + category chips)
+   10. Food details: emojis, servings, tags, modal
    ------------------------------------------------------------------ */
+const FOOD_CAT_EMOJI = {
+  grain: "🌾", legume: "🫘", dairy: "🥛", protein: "🍗", vegetable: "🥦", fruit: "🍎",
+  nut: "🥜", fat: "🫒", snack: "🍿", dish: "🍛", sweet: "🍬", beverage: "🥤", condiment: "🧂",
+};
+function foodEmoji(name, category) {
+  const t = String(name || "").toLowerCase();
+  for (const [k, v] of EMOJI_MAP) if (t.includes(k)) return v;
+  return FOOD_CAT_EMOJI[category] || "🍽";
+}
+const titleCase = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
+
+const SERVING_RULES = [
+  [/roti|chapati/, "1 roti", 40], [/paratha/, "1 paratha", 60], [/naan/, "1 naan", 90],
+  [/puri/, "1 puri", 25], [/bread|toast/, "1 slice", 28], [/idli/, "2 idli", 80],
+  [/dosa/, "1 dosa", 100],
+  [/khichdi|poha|upma|dal|rajma|chole|curry|makhani|masala|biryani|fried rice|pav bhaji|palak paneer|curd rice|pasta|noodles|quinoa/, "1 bowl", 150],
+  [/rice/, "1 bowl", 150],
+  [/chicken breast|mutton|rohu|salmon|prawn|shrimp|tofu|fish/, "1 serving", 100],
+  [/omelette|egg/, "1 egg", 50],
+  [/samosa|vada/, "1 piece", 50], [/pakora/, "4 pieces", 40], [/nuggets/, "4 pieces", 80],
+  [/pizza/, "1 slice", 100], [/fries/, "1 small serve", 80], [/chips/, "1 pack", 30],
+  [/popcorn/, "1 bowl", 30],
+  [/gulab|rasgulla|jalebi/, "1 piece", 45], [/kheer|ice cream/, "1 scoop", 100],
+  [/chocolate/, "1 bar", 40], [/sugar/, "1 tsp", 4],
+  [/tea|coffee/, "1 cup", 150], [/beer/, "1 bottle", 330], [/cola|coconut water|soft drink/, "1 glass", 250],
+  [/milk/, "1 glass", 250], [/curd|yogurt/, "1 bowl", 150],
+  [/paneer/, "2 cubes", 40], [/cheese/, "1 slice", 30],
+  [/peanut butter/, "1 tbsp", 16], [/butter|ghee/, "1 tsp", 5],
+  [/olive oil|coconut oil|mayonnaise/, "1 tbsp", 14],
+  [/almond|cashew|walnut|peanut|chia/, "1 handful", 28],
+  [/banana/, "1 medium", 120], [/apple|orange|guava|pomegranate/, "1 medium", 130],
+  [/mango/, "1 cup", 165], [/watermelon|papaya|grapes/, "1 bowl", 150],
+  [/dates/, "2 pieces", 24], [/avocado/, "half fruit", 70],
+  [/sprout/, "1 bowl", 100], [/oat/, "1 bowl", 40], [/cornflakes/, "1 bowl", 30],
+  [/soy chunks/, "1 bowl", 50],
+  [/cucumber|tomato|onion|carrot|mushroom|capsicum|cabbage|cauliflower|broccoli|spinach|okra|salad|vegetable/, "1 bowl", 100],
+  [/honey|ketchup|chutney|pickle/, "1 tbsp", 15], [/soy sauce|salt/, "1 pinch", 1],
+];
+const CAT_SERVING = {
+  grain: ["1 katori", 100], legume: ["1 bowl", 150], dairy: ["1 serving", 150], protein: ["1 serving", 100],
+  vegetable: ["1 bowl", 100], fruit: ["1 serving", 120], nut: ["1 handful", 28], fat: ["1 tbsp", 14],
+  snack: ["1 serving", 50], dish: ["1 bowl", 150], sweet: ["1 piece", 50], beverage: ["1 glass", 250], condiment: ["1 tbsp", 15],
+};
+function commonServing(f) {
+  for (const [re, label, g] of SERVING_RULES) if (re.test(f.name)) return [label, g];
+  return CAT_SERVING[f.category] || ["1 serving", 100];
+}
+function foodTags(f) {
+  const tags = [];
+  if (f.tags) tags.push(titleCase(f.tags));
+  if (f.protein >= 10) tags.push("High Protein");
+  if (f.fiber >= 5) tags.push("High Fibre");
+  if (f.calories > 0 && f.calories <= 60) tags.push("Low Calorie");
+  if (f.calories >= 400) tags.push("Calorie Dense");
+  if (f.sugar >= 20) tags.push("High Sugar");
+  if (f.sodium >= 600) tags.push("High Sodium");
+  if (f.sodium <= 10 && f.calories > 0) tags.push("Low Sodium");
+  if (f.fat >= 20) tags.push("High Fat");
+  return [...new Set(tags)].slice(0, 6);
+}
+function keyNutrients(f) {
+  const out = [];
+  if (f.tags) out.push(titleCase(f.tags));
+  if (f.protein >= 10) out.push(`Protein ${f.protein.toFixed(1)} g`);
+  if (f.fiber >= 5) out.push(`Fibre ${f.fiber.toFixed(1)} g`);
+  if (f.category === "vegetable" || f.category === "fruit") out.push("Vitamins & minerals");
+  if (f.category === "dairy") out.push("Calcium");
+  if (f.category === "legume") out.push("Iron & folate");
+  return [...new Set(out)].slice(0, 5);
+}
+function closeFoodModal() {
+  els.foodModal.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+function openFoodModal(f) {
+  const em = foodEmoji(f.name, f.category);
+  const [label, g] = commonServing(f);
+  const m = g / 100;
+  const tags = foodTags(f);
+  const stat = (ic, lbl, v) =>
+    `<div class="fd-stat"><span class="fd-ic">${ic}</span><span class="fd-lbl">${lbl}</span><b class="fd-val">${v}</b></div>`;
+  els.foodModalCard.innerHTML = `
+    <div class="fd-head">
+      <span class="fd-emoji">${em}</span>
+      <div class="fd-title"><h3>${esc(f.name)}</h3><span class="fd-cat">${esc(f.category)}</span></div>
+      <button id="fdClose" class="modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="fd-tags">${tags.map((t) => `<span class="fd-tag">${esc(t)}</span>`).join("") || '<span class="fd-tag">Everyday food</span>'}</div>
+    <div class="fd-serving">🍽 Common serving: <b>${label} (${g} g)</b> — about <b>${Math.round(f.calories * m)} kcal</b></div>
+    <h4 class="fd-h">Per 100 g</h4>
+    <div class="fd-grid">
+      ${stat("🔥", "Calories", `${f.calories} kcal`)}${stat("🥩", "Protein", `${f.protein.toFixed(1)} g`)}
+      ${stat("🍞", "Carbs", `${f.carbs.toFixed(1)} g`)}${stat("🧈", "Fat", `${f.fat.toFixed(1)} g`)}
+      ${stat("🌿", "Fibre", `${f.fiber.toFixed(1)} g`)}${stat("🍬", "Sugar", `${f.sugar.toFixed(1)} g`)}
+      ${stat("🧂", "Sodium", `${f.sodium} mg`)}
+    </div>
+    <h4 class="fd-h">Per ${label} (${g} g)</h4>
+    <div class="fd-grid">
+      ${stat("🔥", "Calories", `${Math.round(f.calories * m)} kcal`)}${stat("🥩", "Protein", `${(f.protein * m).toFixed(1)} g`)}
+      ${stat("🍞", "Carbs", `${(f.carbs * m).toFixed(1)} g`)}${stat("🧈", "Fat", `${(f.fat * m).toFixed(1)} g`)}
+      ${stat("🌿", "Fibre", `${(f.fiber * m).toFixed(1)} g`)}${stat("🍬", "Sugar", `${(f.sugar * m).toFixed(1)} g`)}
+      ${stat("🧂", "Sodium", `${Math.round(f.sodium * m)} mg`)}
+    </div>
+    <h4 class="fd-h">Key nutrients</h4>
+    <div class="fd-tags">${keyNutrients(f).map((t) => `<span class="fd-tag green">${esc(t)}</span>`).join("")}</div>`;
+  els.foodModal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  $("fdClose").addEventListener("click", closeFoodModal);
+}
+els.foodModalBack.addEventListener("click", closeFoodModal);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.foodModal.classList.contains("hidden")) closeFoodModal();
+});
+
 function renderCatChips() {
   const cats = ["all", ...new Set(FOODS.map((f) => f.category))];
   els.catChips.innerHTML = cats.map((c) =>
-    `<button class="cat-chip ${c === state.catFilter ? "active" : ""}" data-cat="${c}">${c}</button>`).join("");
+    `<button class="cat-chip ${c === state.catFilter ? "active" : ""}" data-cat="${c}">${c === "all" ? "🍽" : FOOD_CAT_EMOJI[c] || "🍽"} ${c}</button>`).join("");
 }
 els.catChips.addEventListener("click", (e) => {
   const btn = e.target.closest(".cat-chip");
@@ -1092,8 +1207,8 @@ function renderDB() {
   });
 
   els.dbTableBody.innerHTML = rows.map((f) => `
-    <tr>
-      <td>${f.name}</td><td>${f.category}</td>
+    <tr class="food-row" data-name="${esc(f.name)}" title="Tap for details">
+      <td><span class="f-emoji">${foodEmoji(f.name, f.category)}</span>${f.name}</td><td>${f.category}</td>
       <td class="num">${f.calories}</td><td class="num">${f.protein.toFixed(1)}</td>
       <td class="num">${f.carbs.toFixed(1)}</td><td class="num">${f.fat.toFixed(1)}</td>
       <td class="num">${f.fiber.toFixed(1)}</td><td class="num">${f.sugar.toFixed(1)}</td>
@@ -1101,6 +1216,12 @@ function renderDB() {
     </tr>`).join("") || `<tr><td colspan="9" class="muted">No matches.</td></tr>`;
   els.dbCount.textContent = `— ${rows.length} of ${FOODS.length} foods`;
 }
+els.dbTableBody.addEventListener("click", (e) => {
+  const tr = e.target.closest(".food-row");
+  if (!tr) return;
+  const f = FOODS.find((x) => x.name === tr.dataset.name);
+  if (f) openFoodModal(f);
+});
 
 document.querySelectorAll("#dbTable th[data-sort]").forEach((th) => {
   th.addEventListener("click", () => {

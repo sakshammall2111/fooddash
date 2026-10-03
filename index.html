@@ -28,6 +28,30 @@
 </header>
 
 <main>
+  <!-- ============ LANDING HERO ============ -->
+  <section class="land-hero">
+    <div class="land-copy">
+      <span class="land-kicker">🥗 AI-powered nutrition, made simple</span>
+      <h2 class="land-title">Know what's on your plate.</h2>
+      <p class="land-sub">Analyse any meal with AI, compare foods head-to-head, and build healthier habits — backed by an offline Indian nutrition database.</p>
+      <div class="land-ctas">
+        <a href="#analyser" class="btn primary big">🍽 Analyse a Meal</a>
+        <a href="#database" class="btn ghost big">🗂 Explore Foods</a>
+      </div>
+    </div>
+    <div class="sample-card">
+      <div class="sample-head">
+        <span class="sample-emoji">🍛</span>
+        <div class="sample-title"><b>1 plate Indian thali</b><span class="muted small">sample analysis</span></div>
+        <span class="sample-score">7.2 / 10</span>
+      </div>
+      <div class="sample-chips">
+        <span>🔥 620 kcal</span><span>🥩 19 g protein</span><span>🌾 12 g fibre</span><span>🧂 640 mg sodium</span>
+      </div>
+      <p class="sample-note">💡 Balanced meal! Add extra sabzi for fibre and go easy on the ghee.</p>
+    </div>
+  </section>
+
   <!-- ============ ANALYSER ============ -->
   <section id="analyser" class="card panel">
     <h2>🍽 Analyse your meal</h2>
@@ -120,7 +144,8 @@
         <div id="negativesList" class="neg-list"></div>
       </div>
       <div id="altBox" class="insight-box alternatives hidden">
-        <h3>💡 Healthier swaps — try these instead</h3>
+        <h3>🌿 Healthy alternatives</h3>
+        <p class="box-lead">Want to improve this meal? Try these swaps:</p>
         <div id="altList" class="alt-list"></div>
       </div>
       <div id="portionBox" class="insight-box portion hidden">
@@ -204,6 +229,7 @@
     <h2>🗂 Offline food table <span class="muted small" id="dbCount"></span></h2>
     <div id="catChips" class="cat-chips"></div>
     <input id="dbSearch" class="search" type="search" placeholder="Search food, category or tag… (e.g. dal, high fibre, fried)">
+    <p class="muted small tap-hint">👆 Tap any food to see full details — serving size, nutrients and tags.</p>
     <div class="table-wrap card">
       <table id="dbTable">
         <thead>
@@ -224,6 +250,12 @@
     </div>
   </section>
 </main>
+
+<!-- ============ FOOD DETAILS MODAL ============ -->
+<div id="foodModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div id="foodModalBack" class="modal-back"></div>
+  <div id="foodModalCard" class="modal-card"></div>
+</div>
 
 <footer>Made with ❤ — values are approximations, not medical advice. <span id="groqStatus" class="muted"></span></footer>
 
