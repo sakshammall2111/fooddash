@@ -18,7 +18,7 @@ HOST = "127.0.0.1"
 PORT = 8613
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-20b"
-DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+DEFAULT_VISION_MODEL = "qwen/qwen3.8-27b"
 
 
 def load_env(path=".env"):

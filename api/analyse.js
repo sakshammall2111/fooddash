@@ -4,7 +4,7 @@
 // and never reaches the browser.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
-const DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const DEFAULT_VISION_MODEL = "qwen/qwen3.8-27b";
 
 const SYSTEM_PROMPT = `You are a precise nutrition analyst. The user describes a meal or food.
 Estimate realistic quantities (in grams/ml) and nutrition values for the WHOLE stated quantity, not per 100 g.
