@@ -135,6 +135,11 @@ def call_groq(meal_text=None, image_data_url=None):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # local dev: never cache, so file edits show up on a plain reload
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def _send(self, code, body, ctype="application/json"):
         self.send_response(code)
         self.send_header("Content-Type", ctype)

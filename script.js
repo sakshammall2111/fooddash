@@ -132,12 +132,20 @@ const DV = { calories: 2000, protein: 50, fiber: 30, sugar: 50, sodium: 2300, fa
 const HISTORY_KEY = "meallens_history_v1";
 const FLAGS_KEY = "meallens_flags_v1";
 
-const PALETTE = {
-  protein: "#34d399", carbs: "#2dd4bf", fat: "#fbbf24",
-  fiber: "#84cc16", sugar: "#f87171", sodium: "#a3c4b2",
-  remaining: "#1d3d29", extra: ["#a3e635", "#34d399", "#fbbf24", "#2dd4bf",
-                                "#fb923c", "#4ade80", "#e879f9", "#38bdf8"]
-};
+/* theme-aware chart colors — read live from the CSS custom properties */
+function cssVar(name, fallback = "") {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+function palette() {
+  return {
+    protein: "#34d399", carbs: "#2dd4bf", fat: "#fbbf24",
+    fiber: "#84cc16", sugar: "#f87171", sodium: cssVar("--chart-sodium", "#a9c9b7"),
+    remaining: cssVar("--chart-remaining", "#142c1c"),
+    extra: ["#a3e635", "#34d399", "#fbbf24", "#2dd4bf",
+            "#fb923c", "#4ade80", "#e879f9", "#38bdf8"],
+  };
+}
 
 const EMOJI_MAP = [
   ["pizza","🍕"],["burger","🍔"],["sandwich","🥪"],["salad","🥗"],["thali","🍛"],["biryani","🍛"],
@@ -194,12 +202,21 @@ const els = {
   badgesRow: $("badgesRow"), historyList: $("historyList"), clearHistoryBtn: $("clearHistoryBtn"),
   catChips: $("catChips"),
   foodModal: $("foodModal"), foodModalCard: $("foodModalCard"), foodModalBack: $("foodModalBack"),
+  // redesign elements
+  themeToggle: $("themeToggle"), uploadWrap: $("uploadWrap"), dropzone: $("dropzone"),
+  historySearch: $("historySearch"), historyFilter: $("historyFilter"),
+  dbGrid: $("dbGrid"), dbTableWrap: $("dbTableWrap"), viewToggle: $("viewToggle"),
+  dashMeals: $("dashMeals"), dashKcal: $("dashKcal"), dashScore: $("dashScore"),
+  dashTrend: $("dashTrend"), dashTrendIcon: $("dashTrendIcon"),
 };
 
 const state = {
   charts: { items: null, targets: null, week: null },
   dbSort: { key: "name", dir: 1 },
   catFilter: "all",
+  dbView: "grid",
+  historyFilter: "all",
+  historyQuery: "",
   photo: "",          // data URL of the selected food photo
   ready: false,
 };
@@ -368,11 +385,30 @@ function downscaleImage(dataUrl, max = 1024) {
 function setPhoto(dataUrl) {
   state.photo = dataUrl || "";
   els.photoPreviewWrap.classList.toggle("hidden", !dataUrl);
+  els.uploadWrap.classList.toggle("has-photo", !!dataUrl);
   if (dataUrl) {
     els.photoPreview.src = dataUrl;
     setHero("📷", "Photo ready — add an optional note, then hit Analyse");
   } else if (!els.mealInput.value.trim()) {
     setHero("🥗", "Snap it, describe it, or try an example below", false);
+  }
+}
+
+async function handlePhotoFile(file) {
+  if (!file || !/^image\//.test(file.type || "")) {
+    status("⚠ Please choose an image file (JPG or PNG).", "error");
+    return;
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    status("⚠ That photo is a bit large — try one under 12 MB.", "error");
+    return;
+  }
+  status("Preparing your photo…", "loading");
+  try {
+    setPhoto(await downscaleImage(await fileToDataUrl(file)));
+    status("Photo ready — add an optional note, then hit Analyse.", "ok");
+  } catch {
+    status("⚠ Could not read that image — try another one.", "error");
   }
 }
 
@@ -382,11 +418,16 @@ function setPhoto(dataUrl) {
 const RING_C = 2 * Math.PI * 52;
 
 function renderScore(rating) {
-  els.scoreNum.textContent = rating.toFixed(1);
-  const color = rating >= 7 ? "var(--brand)" : rating >= 5 ? "var(--amber)" : "var(--rose)";
+  const color = rating >= 7 ? "url(#ringGood)" : rating >= 5 ? "url(#ringMid)" : "url(#ringBad)";
   els.ringFg.style.stroke = color;
   els.ringFg.style.strokeDasharray = RING_C;
-  els.ringFg.style.strokeDashoffset = RING_C * (1 - rating / 10);
+  els.ringFg.style.transition = "none";
+  els.ringFg.style.strokeDashoffset = RING_C;
+  countUp(els.scoreNum, rating, 1, 800);
+  requestAnimationFrame(() => {
+    els.ringFg.style.transition = "stroke-dashoffset 1s cubic-bezier(.22,1,.36,1), stroke .4s";
+    els.ringFg.style.strokeDashoffset = RING_C * (1 - rating / 10);
+  });
   const label = rating >= 8.5 ? "Excellent 🌟" : rating >= 7 ? "Healthy 👍" : rating >= 5.5
     ? "Decent 🙂" : rating >= 4 ? "Average 😐" : rating >= 2.5 ? "Unhealthy ⚠" : "Poor ❌";
   els.scoreLabel.textContent = label;
@@ -411,18 +452,21 @@ function renderChips(t) {
 
 function renderMacroCards(t) {
   const kcal = Math.max(t.calories, 1);
+  const pct = (v, dv) => Math.round((v / Math.max(dv, 1)) * 100);
   const cards = [
-    ["🔥", Math.round(t.calories), "Calories", Math.round(t.calories / DV.calories * 100) + "% of a 2000 kcal day", "calories"],
-    ["🥩", t.protein.toFixed(1) + " g", "Protein", Math.round(t.protein / DV.protein * 100) + "% DV", "protein"],
-    ["🍞", t.carbs.toFixed(1) + " g", "Carbs", Math.round(t.carbs * 4 / kcal * 100) + "% of calories", "carbs"],
-    ["🧈", t.fat.toFixed(1) + " g", "Fat", Math.round(t.fat * 9 / kcal * 100) + "% of calories", "fat"],
-    ["🌾", t.fiber.toFixed(1) + " g", "Fibre", Math.round(t.fiber / DV.fiber * 100) + "% DV", "fiber"],
+    ["🔥", "Calories", String(Math.round(t.calories)), "kcal", pct(t.calories, DV.calories), `${pct(t.calories, DV.calories)}% of a 2000 kcal day`, "calories", false],
+    ["🥩", "Protein", t.protein.toFixed(1), "g", pct(t.protein, DV.protein), `${pct(t.protein, DV.protein)}% of daily value`, "protein", false],
+    ["🍞", "Carbs", t.carbs.toFixed(1), "g", Math.round(t.carbs * 4 / kcal * 100), `${Math.round(t.carbs * 4 / kcal * 100)}% of calories`, "carbs", false],
+    ["🧈", "Fat", t.fat.toFixed(1), "g", Math.round(t.fat * 9 / kcal * 100), `${Math.round(t.fat * 9 / kcal * 100)}% of calories`, "fat", false],
+    ["🌾", "Fibre", t.fiber.toFixed(1), "g", pct(t.fiber, DV.fiber), `${pct(t.fiber, DV.fiber)}% of daily value`, "fiber", false],
+    ["🍬", "Sugar", t.sugar.toFixed(1), "g", pct(t.sugar, DV.sugar), `${pct(t.sugar, DV.sugar)}% of daily value`, "sugar", pct(t.sugar, DV.sugar) > 100],
+    ["🧂", "Sodium", String(Math.round(t.sodium)), "mg", pct(t.sodium, DV.sodium), `${pct(t.sodium, DV.sodium)}% of daily value`, "sodium", pct(t.sodium, DV.sodium) > 100],
   ];
-  els.macroCards.innerHTML = cards.map(([icon, val, label, sub, cls]) =>
-    `<div class="mcard ${cls}">
-       <div class="mc-icon">${icon}</div>
-       <div class="mc-num">${val}</div>
-       <div class="mc-label">${label}</div>
+  els.macroCards.innerHTML = cards.map(([icon, label, val, unit, p, sub, cls, over]) =>
+    `<div class="mcard ${cls}${over ? " over" : ""}">
+       <div class="mc-top"><span class="mc-icon">${icon}</span><span class="mc-label">${label}</span></div>
+       <div class="mc-num">${val}<small style="font-size:.68rem;color:var(--ink-3);font-weight:700"> ${unit}</small></div>
+       <div class="mc-bar"><i style="width:${clamp(p, 3, 100)}%"></i></div>
        <div class="mc-sub">${sub}</div>
      </div>`).join("");
 }
@@ -631,7 +675,8 @@ const targetLinePlugin = {
     const yPos = y.getPixelForValue(100);
     if (yPos < area.top || yPos > area.bottom) return;
     ctx.save();
-    ctx.strokeStyle = "rgba(234, 252, 241, .5)";
+    ctx.globalAlpha = .62;
+    ctx.strokeStyle = cssVar("--chart-ink", "#eafcf1");
     ctx.setLineDash([6, 5]);
     ctx.lineWidth = 1.4;
     ctx.beginPath();
@@ -639,37 +684,47 @@ const targetLinePlugin = {
     ctx.lineTo(area.right, yPos);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(234, 252, 241, .65)";
+    ctx.fillStyle = cssVar("--chart-tick", "#9fbfae");
     ctx.font = "600 10px Inter, sans-serif";
     ctx.fillText("100% of daily target", area.left + 6, yPos - 5);
     ctx.restore();
   },
 };
 
-const CHART_GRID = { color: "rgba(29, 61, 41, .75)" };
+const chartGrid = () => ({ color: cssVar("--chart-grid", "rgba(255,255,255,.06)") });
+const chartTick = () => cssVar("--chart-tick", "#9fbfae");
 
 function baseOptions() {
   return {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { position: "bottom", labels: { color: "#9cc3ac", boxWidth: 12, padding: 14, font: { size: 11 } } },
+      legend: {
+        position: "bottom",
+        labels: { color: chartTick(), boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "circle", padding: 14, font: { size: 11 } },
+      },
       tooltip: {
-        backgroundColor: "#08170f", borderColor: "#1d3d29", borderWidth: 1,
-        titleColor: "#eafcf1", bodyColor: "#9cc3ac", padding: 10,
+        backgroundColor: cssVar("--chart-surface", "#0b1e14"),
+        borderColor: cssVar("--line-strong", "rgba(255,255,255,.1)"), borderWidth: 1,
+        titleColor: cssVar("--chart-ink", "#eafcf1"), bodyColor: chartTick(),
+        padding: 10, cornerRadius: 10, boxPadding: 4, displayColors: true,
       },
     },
   };
 }
 
 function emptyData() {
-  return { labels: ["No data yet"], datasets: [{ label: "", data: [0], backgroundColor: ["#1d3d29"], borderWidth: 0 }] };
+  return { labels: ["No data yet"], datasets: [{ label: "", data: [0], backgroundColor: [cssVar("--chart-empty", "#16361f")], borderWidth: 0 }] };
 }
 
 function ensureCharts() {
   if (state.charts.items) return;
+  if (window.Chart) {
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.font.size = 11;
+  }
   state.charts.items = new Chart($("itemsChart"), {
     type: "doughnut",
-    data: { ...emptyData(), datasets: [{ data: [1], backgroundColor: ["#1d3d29"], borderWidth: 0, cutout: "58%" }] },
+    data: { ...emptyData(), datasets: [{ data: [1], backgroundColor: [cssVar("--chart-empty", "#16361f")], borderWidth: 0, cutout: "62%" }] },
     options: baseOptions(),
   });
   state.charts.targets = new Chart($("targetsChart"), {
@@ -678,10 +733,10 @@ function ensureCharts() {
     options: {
       ...baseOptions(),
       scales: {
-        x: { grid: { display: false }, ticks: { color: "#9cc3ac", font: { size: 11 } } },
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: chartTick(), font: { size: 11 } } },
         y: {
-          grid: CHART_GRID, suggestedMax: 120,
-          ticks: { color: "#9cc3ac", font: { size: 11 }, callback: (v) => v + "%" },
+          grid: chartGrid(), border: { display: false }, suggestedMax: 120,
+          ticks: { color: chartTick(), font: { size: 11 }, callback: (v) => v + "%" },
         },
       },
     },
@@ -693,32 +748,43 @@ function ensureCharts() {
       labels: [],
       datasets: [
         { label: "kcal eaten", data: [], backgroundColor: "rgba(52,211,153,.55)",
-          hoverBackgroundColor: "#34d399", borderRadius: 8, maxBarThickness: 38, yAxisID: "y" },
-        { type: "line", label: "avg health score", data: [], borderColor: "#a3e635",
-          backgroundColor: "#a3e635", tension: .35, pointRadius: 3, borderWidth: 2, yAxisID: "y1" },
+          hoverBackgroundColor: "#34d399", borderRadius: 8, maxBarThickness: 34, yAxisID: "y" },
+        { type: "line", label: "avg health score", data: [], borderColor: "#84cc16",
+          backgroundColor: "#84cc16", tension: .35, pointRadius: 3, borderWidth: 2, yAxisID: "y1",
+          spanGaps: true },
       ],
     },
     options: {
       ...baseOptions(),
       scales: {
-        x: { grid: { display: false }, ticks: { color: "#9cc3ac", font: { size: 11 } } },
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: chartTick(), font: { size: 11 } } },
         y: {
-          position: "left", beginAtZero: true, grid: CHART_GRID,
-          ticks: { color: "#9cc3ac", font: { size: 11 } },
-          title: { display: true, text: "kcal", color: "#9cc3ac", font: { size: 10 } },
+          position: "left", beginAtZero: true, grid: chartGrid(), border: { display: false },
+          ticks: { color: chartTick(), font: { size: 11 } },
+          title: { display: true, text: "kcal", color: chartTick(), font: { size: 10 } },
         },
         y1: {
-          position: "right", min: 0, max: 10, grid: { drawOnChartArea: false },
-          ticks: { color: "#9cc3ac", font: { size: 11 }, stepSize: 2 },
-          title: { display: true, text: "score", color: "#9cc3ac", font: { size: 10 } },
+          position: "right", min: 0, max: 10, grid: { drawOnChartArea: false }, border: { display: false },
+          ticks: { color: chartTick(), font: { size: 11 }, stepSize: 2 },
+          title: { display: true, text: "score", color: chartTick(), font: { size: 10 } },
         },
       },
     },
   });
 }
 
+/* theme flips leave the canvas colors stale — rebuild the charts instead */
+function rebuildCharts() {
+  Object.values(state.charts).forEach((c) => { try { c?.destroy(); } catch { /* noop */ } });
+  state.charts = { items: null, targets: null, week: null };
+  ensureCharts();
+  if (analysis) updateCharts(analysis);
+  updateWeekChart();
+}
+
 function updateCharts(a) {
   ensureCharts();
+  const P = palette();
   const t = a.totals;
 
   // 1) Doughnut — energy share by food item
@@ -729,8 +795,8 @@ function updateCharts(a) {
   pie.data.labels = items.map((i) => i.name);
   pie.data.datasets = [{
     data: kcalData,
-    backgroundColor: items.map((_, i) => PALETTE.extra[i % PALETTE.extra.length]),
-    borderColor: "#10271a", borderWidth: 2, hoverOffset: 10, cutout: "58%",
+    backgroundColor: items.map((_, i) => P.extra[i % P.extra.length]),
+    borderColor: cssVar("--chart-surface"), borderWidth: 2, hoverOffset: 10, cutout: "62%",
     _total: kcalTotal,
   }];
   pie.options.plugins.tooltip.callbacks = {
@@ -739,7 +805,7 @@ function updateCharts(a) {
       return ` ${Math.round(c.parsed)} kcal · ${pct}% of the meal`;
     },
   };
-  pie.options.cutout = "58%";
+  pie.options.cutout = "62%";
   pie.update();
 
   // 2) Bars — this meal vs a full day's budget (2000 kcal reference)
@@ -758,7 +824,7 @@ function updateCharts(a) {
     data: caps.map(([, used, cap]) => clamp((used / Math.max(cap, 1)) * 100, 0, 130)),
     backgroundColor: caps.map(([, used, cap]) => {
       const p = (used / Math.max(cap, 1)) * 100;
-      return p > 100 ? PALETTE.sugar : p > 60 ? PALETTE.fat : PALETTE.protein; // red / amber / green
+      return p > 100 ? P.sugar : p > 60 ? P.fat : P.protein; // red / amber / green
     }),
     borderRadius: 8, maxBarThickness: 46,
   }];
@@ -838,14 +904,39 @@ function calcStreak() {
 }
 function renderStats() {
   const streak = calcStreak();
-  els.streakDays.textContent = streak;
-  els.totalMeals.textContent = history.length;
+  countUp(els.streakDays, streak, 0, 500);
+  countUp(els.totalMeals, history.length, 0, 500);
   els.avgScore.textContent = history.length
     ? (history.reduce((s, h) => s + (h.rating || 0), 0) / history.length).toFixed(1)
     : "–";
   const weekAgo = Date.now() - 7 * 86400000;
-  els.weekKcal.textContent = history.filter((h) => h.ts >= weekAgo)
-    .reduce((s, h) => s + (h.kcal || 0), 0);
+  const weekKcal = history.filter((h) => h.ts >= weekAgo).reduce((s, h) => s + (h.kcal || 0), 0);
+  countUp(els.weekKcal, weekKcal, 0, 600);
+  renderDashStats(weekAgo);
+}
+
+/* premium dashboard tiles (last 7 days + week-over-week trend) */
+function renderDashStats(weekAgo = Date.now() - 7 * 86400000) {
+  if (!els.dashMeals) return;
+  const week = history.filter((h) => h.ts >= weekAgo);
+  const prev = history.filter((h) => h.ts < weekAgo && h.ts >= weekAgo - 7 * 86400000);
+  countUp(els.dashMeals, week.length, 0, 500);
+  const kcal = week.reduce((s, h) => s + (h.kcal || 0), 0);
+  countUp(els.dashKcal, Math.round(kcal / 7), 0, 650);
+  els.dashScore.textContent = week.length
+    ? (week.reduce((s, h) => s + (h.rating || 0), 0) / week.length).toFixed(1)
+    : "–";
+  const prevKcal = prev.reduce((s, h) => s + (h.kcal || 0), 0);
+  if (!prev.length) {
+    els.dashTrend.textContent = week.length ? "new" : "–";
+    els.dashTrend.style.color = week.length ? "var(--brand)" : "";
+    els.dashTrendIcon.textContent = week.length ? "🌱" : "↔";
+    return;
+  }
+  const pct = prevKcal ? Math.round(((kcal - prevKcal) / prevKcal) * 100) : (kcal ? 100 : 0);
+  els.dashTrend.textContent = (pct > 0 ? "+" : "") + pct + "%";
+  els.dashTrend.style.color = pct === 0 ? "" : (pct > 0 ? "var(--bad)" : "var(--good)");
+  els.dashTrendIcon.textContent = pct === 0 ? "↔" : (pct > 0 ? "▲" : "▼");
 }
 function fmtWhen(ts) {
   const d = new Date(ts), now = new Date();
@@ -856,15 +947,45 @@ function fmtWhen(ts) {
   if (sameDay(d, yest)) return `Yesterday ${time}`;
   return d.toLocaleDateString([], { day: "numeric", month: "short" }) + ` ${time}`;
 }
+function historyMatches(h) {
+  const q = state.historyQuery;
+  if (q) {
+    const hay = `${h.text || ""} ${h.emoji || ""} ${h.source === "photo" ? "photo" : ""}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  const f = state.historyFilter;
+  const r = h.rating || 0;
+  if (f === "photo") return h.source === "photo";
+  if (f === "good") return r >= 7;
+  if (f === "mid") return r >= 5 && r < 7;
+  if (f === "bad") return r < 5;
+  return true;
+}
+
 function renderHistory() {
   if (!history.length) {
-    els.historyList.innerHTML = `<div class="muted small">No meals yet — analyse something tasty above!</div>`;
+    els.historyList.innerHTML = `
+      <div class="empty-state">
+        <span class="es-emoji">🍽</span>
+        <b>No meals logged yet</b>
+        <span class="muted small">Analyse your first meal above and it will show up here with its score.</span>
+      </div>`;
     return;
   }
-  els.historyList.innerHTML = history.map((h) => {
+  const rows = history.filter(historyMatches);
+  if (!rows.length) {
+    els.historyList.innerHTML = `
+      <div class="empty-state">
+        <span class="es-emoji">🔍</span>
+        <b>No meals match your filters</b>
+        <span class="muted small">Try a different search term or switch the filter chips.</span>
+      </div>`;
+    return;
+  }
+  els.historyList.innerHTML = rows.map((h) => {
     const cls = h.rating >= 7 ? "good" : h.rating >= 5 ? "mid" : "bad";
     const src = h.source === "photo" ? " 📷" : "";
-    return `<div class="h-item">
+    return `<div class="h-card ${cls}">
       <span class="h-emoji">${h.emoji || "🍽"}</span>
       <span class="h-text">${esc(String(h.text || "").slice(0, 90))}${src}
         <span class="h-when">${fmtWhen(h.ts)}</span></span>
@@ -901,6 +1022,7 @@ async function analyse() {
 
   els.analyseBtn.disabled = true;
   status(img ? "Looking at your photo…" : "Crunching nutrients…", "loading");
+  skeletonReport();
   try {
     const raw = await analyseOnServer(text, img);
     let a = normalizeAnalysis(raw);
@@ -913,6 +1035,7 @@ async function analyse() {
     status(`Analysed ${analysis.items.length} item(s) · ${Math.round(analysis.totals.calories)} kcal · rated ${analysis.rating.toFixed(1)}/10`, "ok");
     if (img) setPhoto(""); // photo consumed — allow text analysis next
   } catch (err) {
+    els.result.classList.add("hidden");
     status("⚠ " + (err?.message || "Something went wrong."), "error");
   } finally {
     els.analyseBtn.disabled = false;
@@ -946,16 +1069,36 @@ els.exampleRow.addEventListener("click", (e) => {
 /* ---------- photo input ---------- */
 els.photoInput.addEventListener("change", async () => {
   const file = els.photoInput.files?.[0];
-  if (!file) return;
-  try {
-    const dataUrl = await downscaleImage(await fileToDataUrl(file));
-    setPhoto(dataUrl);
-  } catch {
-    status("⚠ Could not read that image — try another one.", "error");
-  }
   els.photoInput.value = "";
+  if (file) await handlePhotoFile(file);
 });
-els.photoRemove.addEventListener("click", () => setPhoto(""));
+els.photoRemove.addEventListener("click", (e) => { e.preventDefault(); setPhoto(""); });
+
+/* ---------- drag & drop photo area ---------- */
+["dragenter", "dragover"].forEach((ev) =>
+  els.dropzone.addEventListener(ev, (e) => { e.preventDefault(); els.dropzone.classList.add("drag"); }));
+["dragleave", "dragend"].forEach((ev) =>
+  els.dropzone.addEventListener(ev, () => els.dropzone.classList.remove("drag")));
+els.dropzone.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  els.dropzone.classList.remove("drag");
+  const file = e.dataTransfer?.files?.[0];
+  if (file) await handlePhotoFile(file);
+});
+/* never let a stray drop replace the page */
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
+
+/* ---------- sample meal cards on the homepage ---------- */
+document.querySelectorAll(".example-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    els.mealInput.value = card.dataset.text || "";
+    const name = card.querySelector(".ec-name")?.textContent?.trim() || "meal";
+    setHero(card.dataset.emoji || "🍽", `Example loaded: ${name} — analysing…`);
+    document.getElementById("analyser")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    analyse();
+  });
+});
 
 /* ------------------------------------------------------------------
    9. Compare two foods
@@ -1007,21 +1150,35 @@ function renderCompare(na, nb, labelA, labelB) {
 
   const built = rows.map(([label, va, vb, unit, lb]) => {
     const [ca, cb] = mark(va, vb, lb);
-    return { label, a: va, b: vb, unit, ca, cb };
+    return { label, a: va, b: vb, unit, ca, cb, an: parseFloat(va), bn: parseFloat(vb) };
   });
-  const cardHtml = (title, sub, side, rating, isWinner) => `
+  const cardHtml = (title, sub, side, rating, isWinner, emoji) => `
     <div class="cmp-card ${isWinner ? "winner" : ""}">
-      <div class="cmp-title">${isWinner ? "🏆 " : ""}${esc(title)}</div>
-      <div class="cmp-sub">${esc(sub)}</div>
-      <div class="cmp-rows">
-        ${built.map((r) => `<div class="cmp-row"><span>${r.label}</span><b class="${side === "a" ? r.ca : r.cb}">${r[side]} ${r.unit}</b></div>`).join("")}
+      <div class="cmp-head">
+        <span class="cmp-emoji">${emoji}</span>
+        <span>
+          <span class="cmp-title">${isWinner ? "🏆 " : ""}${esc(title)}</span>
+          <span class="cmp-sub" style="display:block">${esc(sub)}</span>
+        </span>
+        <span class="cmp-badge">${rating.toFixed(1)}<small>SCORE /10</small></span>
       </div>
-      <div class="cmp-rating">Health score: <b>${rating.toFixed(1)} / 10</b></div>
+      <div class="cmp-rows">
+        ${built.map((r) => {
+          const cls = side === "a" ? r.ca : r.cb;
+          const v = side === "a" ? r.an : r.bn;
+          const w = clamp(Math.round((v / Math.max(r.an, r.bn, 1)) * 100), 3, 100);
+          return `<div class="cmp-row">
+            <span class="cr-label">${r.label}</span>
+            <span class="cr-bar"><i class="${cls}" style="width:${w}%"></i></span>
+            <b class="${cls}">${r[side]} ${r.unit}</b>
+          </div>`;
+        }).join("")}
+      </div>
     </div>`;
 
   els.compareCards.innerHTML =
-    cardHtml(titleA, labelA.slice(0, 60), "a", na.rating, winner === "a") +
-    cardHtml(titleB, labelB.slice(0, 60), "b", nb.rating, winner === "b");
+    cardHtml(titleA, labelA.slice(0, 60), "a", na.rating, winner === "a", foodEmoji(titleA, na.items[0]?.name || "")) +
+    cardHtml(titleB, labelB.slice(0, 60), "b", nb.rating, winner === "b", foodEmoji(titleB, nb.items[0]?.name || ""));
 
   // Verdict
   const dKcal = Math.round(tA.calories - tB.calories);
@@ -1192,6 +1349,8 @@ els.catChips.addEventListener("click", (e) => {
   renderDB();
 });
 
+const barW = (v, max) => clamp(Math.round((v / max) * 100), 4, 100);
+
 function renderDB() {
   const q = els.dbSearch.value.trim().toLowerCase();
   let rows = FOODS;
@@ -1206,6 +1365,22 @@ function renderDB() {
     return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * dir;
   });
 
+  els.dbGrid.innerHTML = rows.map((f, i) => `
+    <button class="food-card" type="button" data-name="${esc(f.name)}" title="Tap for details" style="animation-delay:${Math.min(i, 12) * 18}ms">
+      <span class="fc-top">
+        <span class="fc-emoji">${foodEmoji(f.name, f.category)}</span>
+        <span class="fc-kcal">${f.calories}<small>kcal /100 g</small></span>
+      </span>
+      <span class="fc-name">${esc(f.name)}</span>
+      <span class="fc-cat">${FOOD_CAT_EMOJI[f.category] || "🍽"} ${f.category}</span>
+      <span class="fc-macros">P ${f.protein.toFixed(1)} · C ${f.carbs.toFixed(1)} · F ${f.fat.toFixed(1)} g</span>
+      <span class="fc-bars" title="Protein / carbs / fat">
+        <i style="--w:${barW(f.protein, 30)}%"></i><i style="--w:${barW(f.carbs, 60)}%"></i><i style="--w:${barW(f.fat, 30)}%"></i>
+      </span>
+    </button>`).join("") || `
+    <div class="empty-state"><span class="es-emoji">🔍</span><b>No foods match that search</b>
+      <span class="muted small">Try “dal”, “high fibre” or pick another category.</span></div>`;
+
   els.dbTableBody.innerHTML = rows.map((f) => `
     <tr class="food-row" data-name="${esc(f.name)}" title="Tap for details">
       <td><span class="f-emoji">${foodEmoji(f.name, f.category)}</span>${f.name}</td><td>${f.category}</td>
@@ -1214,13 +1389,29 @@ function renderDB() {
       <td class="num">${f.fiber.toFixed(1)}</td><td class="num">${f.sugar.toFixed(1)}</td>
       <td class="num">${f.sodium}</td>
     </tr>`).join("") || `<tr><td colspan="9" class="muted">No matches.</td></tr>`;
-  els.dbCount.textContent = `— ${rows.length} of ${FOODS.length} foods`;
+
+  els.dbCount.textContent = `· ${rows.length} of ${FOODS.length} foods`;
+}
+
+function openByName(name) {
+  const f = FOODS.find((x) => x.name === name);
+  if (f) openFoodModal(f);
 }
 els.dbTableBody.addEventListener("click", (e) => {
   const tr = e.target.closest(".food-row");
-  if (!tr) return;
-  const f = FOODS.find((x) => x.name === tr.dataset.name);
-  if (f) openFoodModal(f);
+  if (tr) openByName(tr.dataset.name);
+});
+els.dbGrid.addEventListener("click", (e) => {
+  const card = e.target.closest(".food-card");
+  if (card) openByName(card.dataset.name);
+});
+els.viewToggle.addEventListener("click", (e) => {
+  const btn = e.target.closest(".vt-btn");
+  if (!btn) return;
+  state.dbView = btn.dataset.view;
+  els.viewToggle.querySelectorAll(".vt-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  els.dbGrid.classList.toggle("hidden", state.dbView !== "grid");
+  els.dbTableWrap.classList.toggle("hidden", state.dbView !== "table");
 });
 
 document.querySelectorAll("#dbTable th[data-sort]").forEach((th) => {
@@ -1249,9 +1440,9 @@ async function checkServer() {
     if (!res.ok) throw new Error();
     const data = await res.json();
     els.groqStatus.textContent = data.api_key_configured
-      ? "• connected ✓" : "• server running, but no API key in .env";
+      ? "• AI connected ✓" : "• offline mode — the built-in food table still works";
   } catch {
-    els.groqStatus.textContent = "• server not reachable — start it with: python server.py";
+    els.groqStatus.textContent = "• service unreachable right now";
   }
 }
 
@@ -1264,3 +1455,101 @@ renderStats();
 renderHistory();
 renderBadges();
 updateWeekChart();
+
+/* ------------------------------------------------------------------
+   12. Theme, scroll-spy, count-ups, skeletons & micro-interactions
+   ------------------------------------------------------------------ */
+function currentTheme() {
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+function setTheme(theme, persist = true) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) { try { localStorage.setItem("meallens_theme", theme); } catch { /* private mode */ } }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "light" ? "#e9f6ee" : "#05100a");
+  if (els.themeToggle) {
+    els.themeToggle.setAttribute("aria-label", theme === "light" ? "Switch to dark theme" : "Switch to light theme");
+  }
+  if (state.charts.items) rebuildCharts();
+}
+els.themeToggle.addEventListener("click", () => setTheme(currentTheme() === "light" ? "dark" : "light"));
+setTheme(currentTheme(), false);
+
+/* smooth count-up for headline numbers */
+function countUp(el, target, decimals = 0, ms = 600) {
+  if (!el) return;
+  const end = Number(target) || 0;
+  const start = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - start) / Math.max(ms, 1));
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = (end * eased).toFixed(decimals);
+    if (p < 1) requestAnimationFrame(step);
+    else el.textContent = end.toFixed(decimals);
+  };
+  requestAnimationFrame(step);
+}
+
+/* skeleton report shown while the AI is thinking */
+function skeletonReport() {
+  els.result.classList.remove("hidden");
+  els.scoreNum.textContent = "…";
+  els.scoreLabel.textContent = "Analysing…";
+  els.ringFg.style.transition = "none";
+  els.ringFg.style.strokeDashoffset = RING_C;
+  els.macroChips.innerHTML = Array(4).fill('<span class="sk sk-chip"></span>').join("");
+  els.notes.innerHTML = "";
+  els.macroCards.innerHTML = Array(7).fill('<div class="sk sk-card"></div>').join("");
+  els.scoreFiveVal.textContent = "–";
+  els.scoreFiveWhy.textContent = "Checking energy, protein, fibre, sugar and sodium…";
+  els.detailsGrid.innerHTML =
+    '<div><div class="sk sk-line" style="width:100%"></div><div class="sk sk-line" style="width:72%;margin-top:.5rem"></div></div>' +
+    '<div><div class="sk sk-line" style="width:100%"></div><div class="sk sk-line" style="width:58%;margin-top:.5rem"></div></div>';
+  els.itemsTableWrap.innerHTML = '<div class="sk sk-table"></div>';
+  [els.smartBox, els.negativesBox, els.altBox, els.portionBox].forEach((b) => b.classList.add("hidden"));
+}
+
+/* ---------- scroll-spy for the top & bottom navigation ---------- */
+const spySections = ["analyser", "compare", "dashboard", "history", "database"]
+  .map((id) => document.getElementById(id)).filter(Boolean);
+const spyLinks = [...document.querySelectorAll("[data-spy]")];
+let spyPending = false;
+function updateSpy() {
+  const y = window.scrollY + 150;
+  let current = spySections[0] ? spySections[0].id : "";
+  for (const s of spySections) if (s.offsetTop <= y) current = s.id;
+  spyLinks.forEach((a) => a.classList.toggle("active", a.dataset.spy === current));
+}
+window.addEventListener("scroll", () => {
+  if (spyPending) return;
+  spyPending = true;
+  requestAnimationFrame(() => { spyPending = false; updateSpy(); });
+}, { passive: true });
+
+/* ---------- reveal sections as they scroll into view ---------- */
+const revealEls = [...document.querySelectorAll(".reveal")];
+if ("IntersectionObserver" in window) {
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (en.isIntersecting) { en.target.classList.add("in"); revealObserver.unobserve(en.target); }
+    });
+  }, { rootMargin: "0px 0px -6% 0px", threshold: .04 });
+  revealEls.forEach((el) => revealObserver.observe(el));
+} else {
+  revealEls.forEach((el) => el.classList.add("in"));
+}
+
+/* ---------- history search & filter chips ---------- */
+els.historySearch.addEventListener("input", () => {
+  state.historyQuery = els.historySearch.value.trim().toLowerCase();
+  renderHistory();
+});
+els.historyFilter.addEventListener("click", (e) => {
+  const btn = e.target.closest(".filter-chip");
+  if (!btn) return;
+  state.historyFilter = btn.dataset.filter;
+  els.historyFilter.querySelectorAll(".filter-chip").forEach((b) => b.classList.toggle("active", b === btn));
+  renderHistory();
+});
+
+updateSpy();

@@ -1,89 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MealLens — Food &amp; Nutrition Analyser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#e9f6ee">
+<meta name="description" content="MealLens — AI food &amp; nutrition analyser. Understand what's on your plate: calories, macros, health score and smarter swaps.">
+<title>MealLens — Understand What's on Your Plate</title>
+<script>
+  /* set theme before first paint — no flash. Default is the light green/white palette. */
+  (function () {
+    try {
+      var t = localStorage.getItem("meallens_theme");
+      if (t !== "light" && t !== "dark") t = "light";
+      document.documentElement.dataset.theme = t;
+    } catch (e) { document.documentElement.dataset.theme = "light"; }
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- ================= TOP BAR ================= -->
 <header class="topbar">
   <div class="brand">
-    <div class="logo">🥗</div>
-    <div>
-      <h1>MealLens</h1>
-      <p class="tagline">AI food &amp; nutrition analyser</p>
-    </div>
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11.5C4 7.9 7.6 5 12 5s8 2.9 8 6.5"/>
+        <path d="M3 14h18"/>
+        <path d="M6.5 17.5h11"/>
+        <path d="M12 2.6v2.2"/>
+      </svg>
+    </span>
+    <span class="brand-text">
+      <h1>Meal<span>Lens</span></h1>
+      <span class="tagline">AI food &amp; nutrition analyser</span>
+    </span>
   </div>
-  <nav class="nav">
-    <a href="#analyser" class="nav-link">Analyser</a>
-    <a href="#compare" class="nav-link">Compare</a>
-    <a href="#dashboard" class="nav-link">Dashboard</a>
-    <a href="#history" class="nav-link">History</a>
-    <a href="#database" class="nav-link">Foods</a>
+
+  <nav class="nav" aria-label="Main">
+    <a href="#analyser" class="nav-link" data-spy="analyser">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 3.4l1.5 3.9 3.9 1.5-3.9 1.5L11 14.2 9.5 10.3 5.6 8.8l3.9-1.5z"/>
+        <path d="M18 14.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>
+      </svg>Analyser</a>
+    <a href="#compare" class="nav-link" data-spy="compare">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7.5h13"/><path d="M14 4.5l3 3-3 3"/>
+        <path d="M20 16.5H7"/><path d="M10 13.5l-3 3 3 3"/>
+      </svg>Compare</a>
+    <a href="#dashboard" class="nav-link" data-spy="dashboard">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 20V11"/><path d="M10 20V4.5"/><path d="M16 20v-6.5"/><path d="M21.5 20H2.5"/>
+      </svg>Dashboard</a>
+    <a href="#history" class="nav-link" data-spy="history">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 2"/>
+      </svg>History</a>
+    <a href="#database" class="nav-link" data-spy="database">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2.2"/>
+        <rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2.2"/>
+        <rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2.2"/>
+        <rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2.2"/>
+      </svg>Foods</a>
   </nav>
+
+  <button id="themeToggle" class="icon-btn theme-toggle" type="button" aria-label="Switch light / dark theme" title="Switch theme">
+    <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.1"/>
+      <path d="M12 2.4v2M12 19.6v2M2.4 12h2M19.6 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>
+    </svg>
+    <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20.6 13.6A8.6 8.6 0 1110.4 3.4a7.1 7.1 0 0010.2 10.2z"/>
+    </svg>
+  </button>
 </header>
 
 <main>
-  <!-- ============ LANDING HERO ============ -->
-  <section class="land-hero">
-    <div class="land-copy">
-      <span class="land-kicker">🥗 AI-powered nutrition, made simple</span>
-      <h2 class="land-title">Know what's on your plate.</h2>
-      <p class="land-sub">Analyse any meal with AI, compare foods head-to-head, and build healthier habits — backed by an offline Indian nutrition database.</p>
-      <div class="land-ctas">
-        <a href="#analyser" class="btn primary big">🍽 Analyse a Meal</a>
-        <a href="#database" class="btn ghost big">🗂 Explore Foods</a>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero reveal">
+    <span class="hero-blob b1" aria-hidden="true"></span>
+    <span class="hero-blob b2" aria-hidden="true"></span>
+    <div class="hero-copy">
+      <span class="kicker"><span class="kicker-dot"></span>AI-powered nutrition, made simple</span>
+      <h2 class="hero-title">Understand What's<br><span class="grad">on Your Plate.</span></h2>
+      <p class="hero-sub">Snap a photo or describe your meal — MealLens breaks it into calories, macros, a health score and smarter swaps in seconds.</p>
+      <div class="hero-ctas">
+        <a href="#analyser" class="btn primary big cta-glow">
+          <svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4.2l1.6 4.2 4.2 1.6-4.2 1.6L12 15.8l-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+          </svg>
+          Analyse a meal
+        </a>
+        <a href="#database" class="btn ghost big">
+          <svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2.2"/>
+            <rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2.2"/>
+          </svg>
+          Explore foods
+        </a>
       </div>
+      <ul class="hero-trust">
+        <li>No sign-up</li>
+        <li>113-food database</li>
+        <li>Photo or text</li>
+      </ul>
     </div>
-    <div class="sample-card">
-      <div class="sample-head">
-        <span class="sample-emoji">🍛</span>
-        <div class="sample-title"><b>1 plate Indian thali</b><span class="muted small">sample analysis</span></div>
-        <span class="sample-score">7.2 / 10</span>
+
+    <div class="hero-visual">
+      <div class="sample-card glass">
+        <div class="sample-head">
+          <span class="sample-emoji">🍛</span>
+          <span class="sample-title"><b>Indian thali</b><span class="muted small">sample report</span></span>
+          <span class="sample-score">7.2</span>
+        </div>
+        <div class="sample-bars">
+          <div class="sb"><span>Protein</span><i style="--w:62%"></i><b>19 g</b></div>
+          <div class="sb"><span>Carbs</span><i style="--w:78%"></i><b>72 g</b></div>
+          <div class="sb"><span>Fat</span><i style="--w:44%"></i><b>18 g</b></div>
+          <div class="sb"><span>Fibre</span><i style="--w:56%"></i><b>12 g</b></div>
+        </div>
+        <div class="sample-chips">
+          <span>🔥 620 kcal</span><span>🧂 640 mg</span><span>🌾 high fibre</span>
+        </div>
+        <p class="sample-note">💡 Balanced meal — add a sabzi for fibre and go easy on the ghee.</p>
       </div>
-      <div class="sample-chips">
-        <span>🔥 620 kcal</span><span>🥩 19 g protein</span><span>🌾 12 g fibre</span><span>🧂 640 mg sodium</span>
-      </div>
-      <p class="sample-note">💡 Balanced meal! Add extra sabzi for fibre and go easy on the ghee.</p>
+      <span class="float-chip fc1">🥗 +2.4 g fibre</span>
+      <span class="float-chip fc2">⭐ 7.2 / 10</span>
+      <span class="float-chip fc3">🔥 620 kcal</span>
     </div>
   </section>
 
-  <!-- ============ ANALYSER ============ -->
-  <section id="analyser" class="card panel">
-    <h2>🍽 Analyse your meal</h2>
+  <!-- ================= ANALYSER ================= -->
+  <section id="analyser" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Analyse your meal</h2>
+        <p class="muted small">Drop a photo or describe what you ate — the AI handles the rest.</p>
+      </div>
+      <span class="pill-soft">✨ AI-powered</span>
+    </div>
 
     <div class="food-hero">
       <div id="heroEmoji" class="hero-emoji">🥗</div>
       <p id="heroCaption" class="hero-caption">Snap it, describe it, or try an example below</p>
     </div>
 
-    <div class="example-row" id="exampleRow">
-      <button class="example-chip" data-emoji="🍛" data-text="1 plate Indian thali: 2 chapati, dal, jeera rice, sabzi, curd, salad">🍛 Indian Thali</button>
-      <button class="example-chip" data-emoji="🥗" data-text="Large garden salad with lettuce, cucumber, tomato, chickpeas, feta cheese and olive oil dressing">🥗 Salad</button>
-      <button class="example-chip" data-emoji="🍕" data-text="2 slices of cheese pizza and one glass of cola">🍕 Pizza</button>
-      <button class="example-chip" data-emoji="🍳" data-text="Hearty breakfast: 2 eggs omelette, 2 slices whole wheat toast with butter, 1 cup milk tea with sugar">🍳 Breakfast</button>
+    <div class="upload-wrap" id="uploadWrap">
+      <label class="dropzone" id="dropzone" for="photoInput">
+        <span class="dz-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16.2V5.4"/><path d="M7.6 9.8L12 5.4l4.4 4.4"/>
+            <path d="M4 15.2v2.6a3 3 0 003 3h10a3 3 0 003-3v-2.6"/>
+          </svg>
+        </span>
+        <span class="dz-title">Drag &amp; drop a food photo</span>
+        <span class="dz-sub">or <b>browse your files</b> · JPG / PNG · up to ~3 MB</span>
+        <input type="file" id="photoInput" accept="image/*" hidden>
+      </label>
+
+      <div id="photoPreviewWrap" class="photo-preview hidden">
+        <img id="photoPreview" alt="Selected food photo">
+        <span class="pp-body">
+          <b>Photo ready</b>
+          <span class="muted small">Add an optional note below — e.g. “2 chapatis”.</span>
+        </span>
+        <button id="photoRemove" class="icon-btn sm" type="button" title="Remove photo" aria-label="Remove photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
     </div>
 
-    <p class="muted">Describe a food or a whole meal — amounts in grams help. e.g. <em>"2 chapati + 1 bowl dal + 100g curd"</em></p>
-
-    <label class="photo-btn btn" for="photoInput">
-      📷 Analyse a food photo
-      <input type="file" id="photoInput" accept="image/*" hidden>
-    </label>
-    <div id="photoPreviewWrap" class="photo-preview hidden">
-      <img id="photoPreview" alt="Selected food">
-      <button id="photoRemove" class="photo-remove" title="Remove photo">✕</button>
-      <span class="photo-note muted small">Photo will be analysed visually — add a note to improve accuracy.</span>
-    </div>
+    <div class="divider-or"><span>or describe it</span></div>
 
     <textarea id="mealInput" rows="3" placeholder="e.g. 2 chapati, 150 g rajma, 100 g rice, 1 tsp ghee"></textarea>
+
+    <div class="example-row" id="exampleRow">
+      <button class="example-chip" type="button" data-emoji="🍛" data-text="1 plate Indian thali: 2 chapati, dal, jeera rice, sabzi, curd, salad">🍛 Indian Thali</button>
+      <button class="example-chip" type="button" data-emoji="🥗" data-text="Large garden salad with lettuce, cucumber, tomato, chickpeas, feta cheese and olive oil dressing">🥗 Salad</button>
+      <button class="example-chip" type="button" data-emoji="🍕" data-text="2 slices of cheese pizza and one glass of cola">🍕 Pizza</button>
+      <button class="example-chip" type="button" data-emoji="🍳" data-text="Hearty breakfast: 2 eggs omelette, 2 slices whole wheat toast with butter, 1 cup milk tea with sugar">🍳 Breakfast</button>
+    </div>
+
+    <p class="muted small">Amounts in grams give the most accurate estimate — e.g. <em>“2 chapati + 1 bowl dal + 100 g curd”</em>.</p>
+
     <div class="row">
-      <button id="analyseBtn" class="btn primary big">✨ Analyse</button>
-      <button id="clearBtn" class="btn ghost">Clear</button>
+      <button id="analyseBtn" class="btn primary big" type="button">
+        <svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4.2l1.6 4.2 4.2 1.6-4.2 1.6L12 15.8l-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+        </svg>
+        Analyse meal
+      </button>
+      <button id="clearBtn" class="btn ghost" type="button">Clear</button>
       <label class="people-picker">👥
         <select id="peopleCount">
           <option value="1">1 person</option>
@@ -96,15 +209,37 @@
           <option value="10">10 people</option>
         </select>
       </label>
-      <label class="checkbox"><input type="checkbox" id="useLocal"> Also use offline food table</label>
+      <label class="switch">
+        <input type="checkbox" id="useLocal">
+        <span class="switch-track" aria-hidden="true"></span>
+        <span class="switch-text">Offline table</span>
+      </label>
     </div>
+
     <div id="status" class="status hidden"></div>
 
+    <!-- ---------- REPORT ---------- -->
     <div id="result" class="hidden">
+      <div class="report-head">
+        <span class="rh-title"><span class="rh-dot" aria-hidden="true"></span>Nutrition report</span>
+        <span class="pill-soft">per serving shown</span>
+      </div>
+
       <div class="hero-grid">
         <div class="score-card">
           <div class="ring-wrap">
-            <svg viewBox="0 0 120 120" class="ring">
+            <svg viewBox="0 0 120 120" class="ring" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGood" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#a3e635"/>
+                </linearGradient>
+                <linearGradient id="ringMid" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/>
+                </linearGradient>
+                <linearGradient id="ringBad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#f43f5e"/>
+                </linearGradient>
+              </defs>
               <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
               <circle id="ringFg" class="ring-fg" cx="60" cy="60" r="52"></circle>
             </svg>
@@ -156,10 +291,94 @@
     </div>
   </section>
 
-  <!-- ============ COMPARE ============ -->
-  <section id="compare" class="card panel">
-    <h2>⚖ Compare two foods</h2>
-    <p class="muted">Put any two foods or meals head-to-head — values, scores and a verdict.</p>
+  <!-- ================= HOW IT WORKS ================= -->
+  <section class="section reveal" aria-label="How MealLens works">
+    <div class="section-head centered">
+      <div>
+        <h2>How MealLens works</h2>
+        <p class="muted small">Three steps from plate to insight.</p>
+      </div>
+    </div>
+    <div class="steps">
+      <article class="step-card">
+        <span class="step-num">1</span>
+        <span class="step-icon">📷</span>
+        <h3>Snap or describe</h3>
+        <p>Upload a photo of your plate, or just type what you ate — <em>“2 chapati + dal + curd”</em> works great.</p>
+      </article>
+      <article class="step-card">
+        <span class="step-num">2</span>
+        <span class="step-icon">🧮</span>
+        <h3>AI breaks it down</h3>
+        <p>Every item is identified and turned into calories, protein, carbs, fat, fibre, sugar and sodium.</p>
+      </article>
+      <article class="step-card">
+        <span class="step-num">3</span>
+        <span class="step-icon">📈</span>
+        <h3>Get your score &amp; swaps</h3>
+        <p>A health score, portion advice and healthier alternatives — plus streaks and trends to keep you going.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ================= SAMPLE MEALS ================= -->
+  <section class="section reveal" aria-label="Sample meals">
+    <div class="section-head">
+      <div>
+        <h2>Try a sample meal</h2>
+        <p class="muted small">One tap loads it into the analyser and runs the report.</p>
+      </div>
+      <span class="pill-soft">🍽 Instant demo</span>
+    </div>
+    <div class="example-cards">
+      <button class="example-card" type="button" data-emoji="🍛" data-text="1 plate Indian thali: 2 chapati, dal, jeera rice, sabzi, curd, salad">
+        <span class="ec-emoji">🍛</span><span class="ec-name">Indian Thali</span><span class="ec-meta">~620 kcal · balanced</span>
+      </button>
+      <button class="example-card" type="button" data-emoji="🥗" data-text="Large garden salad with lettuce, cucumber, tomato, chickpeas, feta cheese and olive oil dressing">
+        <span class="ec-emoji">🥗</span><span class="ec-name">Garden Salad</span><span class="ec-meta">~320 kcal · high fibre</span>
+      </button>
+      <button class="example-card" type="button" data-emoji="🥞" data-text="2 masala dosa with coconut chutney and sambar">
+        <span class="ec-emoji">🥞</span><span class="ec-name">Masala Dosa</span><span class="ec-meta">~480 kcal · South Indian</span>
+      </button>
+      <button class="example-card" type="button" data-emoji="🍲" data-text="150 g rajma curry with 150 g steamed rice and salad">
+        <span class="ec-emoji">🍲</span><span class="ec-name">Rajma &amp; Rice</span><span class="ec-meta">~520 kcal · plant protein</span>
+      </button>
+      <button class="example-card" type="button" data-emoji="🍕" data-text="2 slices of cheese pizza and one glass of cola">
+        <span class="ec-emoji">🍕</span><span class="ec-name">Pizza &amp; Cola</span><span class="ec-meta">~640 kcal · treat meal</span>
+      </button>
+      <button class="example-card" type="button" data-emoji="🍳" data-text="Hearty breakfast: 2 eggs omelette, 2 slices whole wheat toast with butter, 1 cup milk tea with sugar">
+        <span class="ec-emoji">🍳</span><span class="ec-name">Egg Breakfast</span><span class="ec-meta">~430 kcal · protein start</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= FEATURES ================= -->
+  <section class="section reveal" aria-label="Features">
+    <div class="section-head centered">
+      <div>
+        <h2>Why MealLens</h2>
+        <p class="muted small">Everything you need to eat a little better — in one clean place.</p>
+      </div>
+    </div>
+    <div class="features">
+      <article class="feature-card"><span class="f-icon">📷</span><h3>Photo or text analysis</h3><p>Works with a single photo, a messy description, or both together.</p></article>
+      <article class="feature-card"><span class="f-icon">📊</span><h3>Full macro breakdown</h3><p>Calories, protein, carbs, fat, fibre, sugar and sodium — with daily-value context.</p></article>
+      <article class="feature-card"><span class="f-icon">⚖️</span><h3>Compare any two foods</h3><p>Head-to-head nutrient table and a clear verdict on the healthier pick.</p></article>
+      <article class="feature-card"><span class="f-icon">📅</span><h3>History, streaks &amp; trends</h3><p>Your last 7 days of calories and scores, plus badges that reward consistency.</p></article>
+      <article class="feature-card"><span class="f-icon">🥗</span><h3>113-food offline table</h3><p>A built-in Indian &amp; everyday food database you can browse any time.</p></article>
+      <article class="feature-card"><span class="f-icon">🔒</span><h3>Private by design</h3><p>History stays in your browser — nothing is stored on a server.</p></article>
+    </div>
+  </section>
+
+  <!-- ================= COMPARE ================= -->
+  <section id="compare" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Compare two foods</h2>
+        <p class="muted small">Put any two foods or meals head-to-head — values, scores and a verdict.</p>
+      </div>
+      <span class="pill-soft">⚖️ Head-to-head</span>
+    </div>
     <div class="compare-grid">
       <div class="compare-col">
         <span class="vs-tag a">A</span>
@@ -172,8 +391,8 @@
       </div>
     </div>
     <div class="row">
-      <button id="compareBtn" class="btn primary big">⚖ Compare</button>
-      <button id="compareSwapBtn" class="btn ghost">⇄ Swap</button>
+      <button id="compareBtn" class="btn primary big" type="button">⚖ Compare</button>
+      <button id="compareSwapBtn" class="btn ghost" type="button">⇄ Swap</button>
     </div>
     <div id="compareStatus" class="status hidden"></div>
     <div id="compareWrap" class="compare-results hidden">
@@ -182,9 +401,23 @@
     </div>
   </section>
 
-  <!-- ============ DASHBOARD ============ -->
-  <section id="dashboard" class="panel">
-    <h2>📊 Nutrition Dashboard</h2>
+  <!-- ================= DASHBOARD ================= -->
+  <section id="dashboard" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Your nutrition dashboard</h2>
+        <p class="muted small">Trends from everything you have logged.</p>
+      </div>
+      <span class="pill-soft">📅 Last 7 days</span>
+    </div>
+
+    <div class="dash-stats">
+      <div class="stat-card"><span class="sc-icon">🍽</span><span class="stat-num" id="dashMeals">0</span><span class="stat-label">meals this week</span></div>
+      <div class="stat-card"><span class="sc-icon">🔥</span><span class="stat-num" id="dashKcal">0</span><span class="stat-label">avg kcal / day</span></div>
+      <div class="stat-card"><span class="sc-icon">⭐</span><span class="stat-num" id="dashScore">–</span><span class="stat-label">avg health score</span></div>
+      <div class="stat-card"><span class="sc-icon" id="dashTrendIcon">↔</span><span class="stat-num" id="dashTrend">–</span><span class="stat-label">vs previous week</span></div>
+    </div>
+
     <div class="charts-grid two">
       <div class="card chart-card">
         <h3>🥧 Where the calories come from</h3>
@@ -206,31 +439,68 @@
     </div>
   </section>
 
-  <!-- ============ HISTORY ============ -->
-  <section id="history" class="card panel">
-    <div class="history-head">
-      <h2>🕘 Meal history &amp; streaks</h2>
-      <button id="clearHistoryBtn" class="btn ghost small-btn">Clear history</button>
+  <!-- ================= HISTORY ================= -->
+  <section id="history" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Meal history &amp; streaks</h2>
+        <p class="muted small">Every analysed meal, newest first.</p>
+      </div>
+      <button id="clearHistoryBtn" class="btn ghost small-btn" type="button">Clear history</button>
     </div>
+
     <div class="stat-row">
-      <div class="stat-tile"><span class="stat-num" id="streakDays">0</span><span class="stat-label">🔥 day streak</span></div>
-      <div class="stat-tile"><span class="stat-num" id="totalMeals">0</span><span class="stat-label">🗂 meals logged</span></div>
-      <div class="stat-tile"><span class="stat-num" id="avgScore">–</span><span class="stat-label">⭐ avg score /10</span></div>
-      <div class="stat-tile"><span class="stat-num" id="weekKcal">0</span><span class="stat-label">🔥 kcal this week</span></div>
+      <div class="stat-card"><span class="sc-icon">🔥</span><span class="stat-num" id="streakDays">0</span><span class="stat-label">day streak</span></div>
+      <div class="stat-card"><span class="sc-icon">🗂</span><span class="stat-num" id="totalMeals">0</span><span class="stat-label">meals logged</span></div>
+      <div class="stat-card"><span class="sc-icon">⭐</span><span class="stat-num" id="avgScore">–</span><span class="stat-label">avg score /10</span></div>
+      <div class="stat-card"><span class="sc-icon">⚡</span><span class="stat-num" id="weekKcal">0</span><span class="stat-label">kcal this week</span></div>
     </div>
+
     <h3 class="badge-title">🏅 Achievements</h3>
     <div id="badgesRow" class="badges-row"></div>
-    <h3 class="badge-title">Logged meals</h3>
+
+    <div class="hist-controls">
+      <input id="historySearch" class="search" type="search" placeholder="Search your meals… e.g. dal, pizza, photo">
+      <div id="historyFilter" class="filter-chips">
+        <button class="filter-chip active" type="button" data-filter="all">All</button>
+        <button class="filter-chip" type="button" data-filter="good">✅ Healthy 7+</button>
+        <button class="filter-chip" type="button" data-filter="mid">🙂 Moderate</button>
+        <button class="filter-chip" type="button" data-filter="bad">⚠ Low</button>
+        <button class="filter-chip" type="button" data-filter="photo">📷 Photos</button>
+      </div>
+    </div>
+
     <div id="historyList" class="history-list"></div>
   </section>
 
-  <!-- ============ DATABASE ============ -->
-  <section id="database" class="panel">
-    <h2>🗂 Offline food table <span class="muted small" id="dbCount"></span></h2>
+  <!-- ================= FOODS ================= -->
+  <section id="database" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Food library <span class="muted small" id="dbCount"></span></h2>
+        <p class="muted small">Tap any food for serving size, full nutrients and tags.</p>
+      </div>
+      <div id="viewToggle" class="view-toggle" role="group" aria-label="View mode">
+        <button class="vt-btn active" type="button" data-view="grid" title="Card view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2.2"/>
+            <rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2.2"/>
+          </svg>
+        </button>
+        <button class="vt-btn" type="button" data-view="table" title="Table view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M3.5 6h17M3.5 12h17M3.5 18h17"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <div id="catChips" class="cat-chips"></div>
     <input id="dbSearch" class="search" type="search" placeholder="Search food, category or tag… (e.g. dal, high fibre, fried)">
-    <p class="muted small tap-hint">👆 Tap any food to see full details — serving size, nutrients and tags.</p>
-    <div class="table-wrap card">
+
+    <div id="dbGrid" class="food-grid"></div>
+
+    <div id="dbTableWrap" class="table-wrap card hidden">
       <table id="dbTable">
         <thead>
           <tr>
@@ -251,13 +521,44 @@
   </section>
 </main>
 
-<!-- ============ FOOD DETAILS MODAL ============ -->
+<!-- ================= FOOD DETAILS MODAL ================= -->
 <div id="foodModal" class="modal hidden" role="dialog" aria-modal="true">
   <div id="foodModalBack" class="modal-back"></div>
   <div id="foodModalCard" class="modal-card"></div>
 </div>
 
-<footer>Made with ❤ — values are approximations, not medical advice. <span id="groqStatus" class="muted"></span></footer>
+<!-- ================= MOBILE BOTTOM NAV ================= -->
+<nav class="bottom-nav" aria-label="Sections">
+  <a href="#analyser" class="bn-link" data-spy="analyser">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 3.4l1.5 3.9 3.9 1.5-3.9 1.5L11 14.2 9.5 10.3 5.6 8.8l3.9-1.5z"/>
+      <path d="M18 14.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>
+    </svg><span>Analyse</span>
+  </a>
+  <a href="#compare" class="bn-link" data-spy="compare">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 7.5h13"/><path d="M14 4.5l3 3-3 3"/><path d="M20 16.5H7"/><path d="M10 13.5l-3 3 3 3"/>
+    </svg><span>Compare</span>
+  </a>
+  <a href="#dashboard" class="bn-link" data-spy="dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 20V11"/><path d="M10 20V4.5"/><path d="M16 20v-6.5"/><path d="M21.5 20H2.5"/>
+    </svg><span>Stats</span>
+  </a>
+  <a href="#history" class="bn-link" data-spy="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 2"/>
+    </svg><span>History</span>
+  </a>
+  <a href="#database" class="bn-link" data-spy="database">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2.2"/>
+      <rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2.2"/><rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2.2"/>
+    </svg><span>Foods</span>
+  </a>
+</nav>
+
+<footer>Made with ❤ — values are approximations, not medical advice. <span id="groqStatus" class="muted small"></span></footer>
 
 <script src="script.js"></script>
 </body>
