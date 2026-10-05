@@ -208,6 +208,12 @@ const els = {
   dbGrid: $("dbGrid"), dbTableWrap: $("dbTableWrap"), viewToggle: $("viewToggle"),
   dashMeals: $("dashMeals"), dashKcal: $("dashKcal"), dashScore: $("dashScore"),
   dashTrend: $("dashTrend"), dashTrendIcon: $("dashTrendIcon"),
+  todaySummary: $("todaySummary"), todayMeta: $("todayMeta"), todayBar: $("todayBar"), todayScore: $("todayScore"),
+  // speed + favourites
+  quickSearch: $("quickSearch"), quickResults: $("quickResults"), quickClear: $("quickClear"),
+  qfHint: $("qfHint"), favGrid: $("favGrid"), favCount: $("favCount"), clearFavs: $("clearFavs"),
+  saveMealFav: $("saveMealFav"), moreDetails: $("moreDetails"),
+  nutrientHighlights: $("nutrientHighlights"), microCards: $("microCards"),
 };
 
 const state = {
@@ -653,6 +659,7 @@ function renderAll(a, meta = {}) {
   renderAlternatives(a.alternatives);
   renderPortion();
   renderItemsTable(a.items, a.totals);
+  renderMoreDetails({ ...a.totals, provides: a.provides, category: a.category });
   updateCharts(a);
   setHero(meta.emoji || "🍽", `${a.category || "Meal"} · ${Math.round(a.totals.calories)} kcal · ${a.confidence.level} confidence`, false);
   addHistory({
@@ -917,6 +924,7 @@ function renderStats() {
 
 /* premium dashboard tiles (last 7 days + week-over-week trend) */
 function renderDashStats(weekAgo = Date.now() - 7 * 86400000) {
+  renderToday();
   if (!els.dashMeals) return;
   const week = history.filter((h) => h.ts >= weekAgo);
   const prev = history.filter((h) => h.ts < weekAgo && h.ts >= weekAgo - 7 * 86400000);
@@ -937,6 +945,22 @@ function renderDashStats(weekAgo = Date.now() - 7 * 86400000) {
   els.dashTrend.textContent = (pct > 0 ? "+" : "") + pct + "%";
   els.dashTrend.style.color = pct === 0 ? "" : (pct > 0 ? "var(--bad)" : "var(--good)");
   els.dashTrendIcon.textContent = pct === 0 ? "↔" : (pct > 0 ? "▲" : "▼");
+}
+
+/* "Today" strip — one-line daily overview from the log (hidden until something is logged today) */
+function renderToday() {
+  const box = els.todaySummary;
+  if (!box) return;
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const today = history.filter((h) => h.ts >= start.getTime());
+  if (!today.length) { box.classList.add("hidden"); return; }
+  const kcal = today.reduce((s, h) => s + (h.kcal || 0), 0);
+  const avg = today.reduce((s, h) => s + (h.rating || 0), 0) / today.length;
+  const pct = Math.min(100, Math.round((kcal / DV.calories) * 100));
+  els.todayMeta.textContent = `${today.length} ${today.length === 1 ? "meal" : "meals"} · ${kcal.toLocaleString()} kcal · ${pct}% of a ${DV.calories.toLocaleString()} kcal day`;
+  els.todayBar.style.width = pct + "%";
+  els.todayScore.textContent = `⭐ ${avg.toFixed(1)} avg`;
+  box.classList.remove("hidden");
 }
 function fmtWhen(ts) {
   const d = new Date(ts), now = new Date();
@@ -1366,7 +1390,7 @@ function renderDB() {
   });
 
   els.dbGrid.innerHTML = rows.map((f, i) => `
-    <button class="food-card" type="button" data-name="${esc(f.name)}" title="Tap for details" style="animation-delay:${Math.min(i, 12) * 18}ms">
+    <div class="food-card" role="button" tabindex="0" data-name="${esc(f.name)}" title="Tap for details" style="animation-delay:${Math.min(i, 12) * 18}ms">
       <span class="fc-top">
         <span class="fc-emoji">${foodEmoji(f.name, f.category)}</span>
         <span class="fc-kcal">${f.calories}<small>kcal /100 g</small></span>
@@ -1377,7 +1401,13 @@ function renderDB() {
       <span class="fc-bars" title="Protein / carbs / fat">
         <i style="--w:${barW(f.protein, 30)}%"></i><i style="--w:${barW(f.carbs, 60)}%"></i><i style="--w:${barW(f.fat, 30)}%"></i>
       </span>
-    </button>`).join("") || `
+      <span class="fav-heart${isFav(f.name) ? " on" : ""}" role="button" tabindex="-1" data-fav="${esc(f.name)}"
+            title="${isFav(f.name) ? "Remove from favourites" : "Save to favourites"}" aria-label="Save ${esc(f.name)} to favourites">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20.2s-7.3-4.3-7.3-9.3A4.2 4.2 0 0112 8.3a4.2 4.2 0 017.3 2.6c0 5-7.3 9.3-7.3 9.3z"/>
+        </svg>
+      </span>
+    </div>`).join("") || `
     <div class="empty-state"><span class="es-emoji">🔍</span><b>No foods match that search</b>
       <span class="muted small">Try “dal”, “high fibre” or pick another category.</span></div>`;
 
@@ -1402,8 +1432,18 @@ els.dbTableBody.addEventListener("click", (e) => {
   if (tr) openByName(tr.dataset.name);
 });
 els.dbGrid.addEventListener("click", (e) => {
+  if (e.target.closest(".fav-heart")) return;   // heart handles itself
   const card = e.target.closest(".food-card");
   if (card) openByName(card.dataset.name);
+});
+els.favGrid.addEventListener("click", (e) => {
+  if (e.target.closest(".fav-heart")) return;
+  const card = e.target.closest(".food-card");
+  if (!card) return;
+  const f = getFavs().find((x) => x.name === card.dataset.name);
+  const src = f && f.calories != null ? FOODS.find((x) => x.name === card.dataset.name) : null;
+  if (src) openFoodModal(src);
+  else { els.mealInput.value = card.dataset.name; analyse(); }
 });
 els.viewToggle.addEventListener("click", (e) => {
   const btn = e.target.closest(".vt-btn");
@@ -1553,3 +1593,292 @@ els.historyFilter.addEventListener("click", (e) => {
 });
 
 updateSpy();
+
+/* ==================================================================
+   13. Quick-find autocomplete, 14. Favourites, 15. Nutrient detail
+   ================================================================== */
+
+/* declared with `var` so they exist before the renderAll/renderDB init block runs */
+var LS_FAVS = "meallens_favs";
+var LS_RECENTS = "meallens_recents";
+var POPULAR = ["rice", "dal", "chapati", "milk", "apple", "egg", "paneer", "banana"];
+
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function lsSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* private mode */ }
+}
+function getFavs() { return lsGet(LS_FAVS, []); }
+function isFav(name) { return getFavs().some((f) => f.name === name); }
+function getRecents() { return lsGet(LS_RECENTS, []); }
+function pushRecent(name) {
+  const r = getRecents().filter((x) => x.toLowerCase() !== name.toLowerCase());
+  r.unshift(name);
+  lsSet(LS_RECENTS, r.slice(0, 8));
+}
+function favEntryFor(name) {
+  const src = FOODS.find((f) => f.name === name);
+  return src
+    ? { name, category: src.category, calories: src.calories, protein: src.protein, carbs: src.carbs, fat: src.fat, emoji: foodEmoji(name, src.category) }
+    : { name, category: null };
+}
+function toggleFav(entry) {
+  const favs = getFavs();
+  const i = favs.findIndex((f) => f.name === entry.name);
+  if (i > -1) favs.splice(i, 1);
+  else favs.unshift({ ...entry, savedAt: Date.now() });
+  lsSet(LS_FAVS, favs.slice(0, 60));
+  renderFavs();
+  syncFavHearts();
+  return i === -1;
+}
+
+/* ---------------------------------------------------------- favourites */
+const HEART_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.3-4.3-7.3-9.3A4.2 4.2 0 0112 8.3a4.2 4.2 0 017.3 2.6c0 5-7.3 9.3-7.3 9.3z"/></svg>`;
+
+function favCardHtml(f, i) {
+  const hasMacros = f.protein != null;
+  return `
+    <div class="food-card" role="button" tabindex="0" data-name="${esc(f.name)}" title="Tap for details" style="animation-delay:${Math.min(i, 12) * 18}ms">
+      <span class="fc-top">
+        <span class="fc-emoji">${f.emoji || foodEmoji(f.name, f.category || "")}</span>
+        <span class="fc-kcal">${hasMacros ? f.calories : "–"}<small>${hasMacros ? "kcal /100 g" : "saved meal"}</small></span>
+      </span>
+      <span class="fc-name">${esc(f.name)}</span>
+      <span class="fc-cat">${f.category ? (FOOD_CAT_EMOJI[f.category] || "🍽") + " " + f.category : "🍽 saved meal"}</span>
+      ${hasMacros ? `<span class="fc-macros">P ${(+f.protein).toFixed(1)} · C ${(+f.carbs).toFixed(1)} · F ${(+f.fat).toFixed(1)} g</span>
+      <span class="fc-bars"><i style="--w:${barW(f.protein, 30)}%"></i><i style="--w:${barW(f.carbs, 60)}%"></i><i style="--w:${barW(f.fat, 30)}%"></i></span>` : ""}
+      <span class="fav-heart on" role="button" tabindex="-1" data-fav="${esc(f.name)}" title="Remove from favourites" aria-label="Remove ${esc(f.name)} from favourites">${HEART_SVG}</span>
+    </div>`;
+}
+
+function renderFavs() {
+  if (!els.favGrid) return;
+  const favs = getFavs();
+  els.favCount.textContent = favs.length ? `· ${favs.length} saved` : "";
+  if (els.clearFavs) els.clearFavs.classList.toggle("hidden", favs.length === 0);
+  els.favGrid.innerHTML = favs.length
+    ? favs.map(favCardHtml).join("")
+    : `<div class="empty-state"><span class="es-emoji">💚</span><b>No favourites yet</b>
+       <span class="muted small">Tap the heart on any food card to save it here for one-tap access.</span></div>`;
+}
+
+function syncFavHearts() {
+  document.querySelectorAll(".fav-heart").forEach((h) => {
+    const on = isFav(h.dataset.fav);
+    h.classList.toggle("on", on);
+    h.title = on ? "Remove from favourites" : "Save to favourites";
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const heart = e.target.closest(".fav-heart");
+  if (!heart) return;
+  e.stopPropagation();
+  e.preventDefault();
+  toggleFav(favEntryFor(heart.dataset.fav));
+});
+
+if (els.clearFavs) {
+  els.clearFavs.addEventListener("click", () => { lsSet(LS_FAVS, []); renderFavs(); syncFavHearts(); });
+}
+
+/* ------------------------------------------------------- quick find */
+function qfRow(f) {
+  return `<button class="qf-item" type="button" data-name="${esc(f.name)}">
+    <span class="qf-emoji">${foodEmoji(f.name, f.category)}</span>
+    <span class="qf-name">${esc(f.name)}</span>
+    <span class="qf-cat">${f.category}</span>
+    <span class="qf-kcal">${f.calories} kcal</span>
+  </button>`;
+}
+function qfScore(f, q) {
+  const n = String(f.name || "").toLowerCase();
+  if (n === q) return 0;
+  if (n.startsWith(q)) return 1;
+  if (n.includes(q)) return 2;
+  const tags = Array.isArray(f.tags) ? f.tags.join(" ") : String(f.tags || "");
+  if (String(f.category || "").toLowerCase().includes(q) || tags.toLowerCase().includes(q)) return 3;
+  return -1;
+}
+function quickFind() {
+  const raw = (els.quickSearch.value || "").trim().toLowerCase();
+  if (!raw) { closeQf(); return; }
+  const matches = FOODS
+    .map((f) => ({ f, s: qfScore(f, raw) }))
+    .filter((x) => x.s > -1)
+    .sort((a, b) => a.s - b.s || a.f.name.localeCompare(b.f.name))
+    .slice(0, 8)
+    .map((x) => x.f);
+  els.quickSearch.setAttribute("aria-expanded", "true");
+  els.quickResults.classList.remove("hidden");
+  els.quickResults.innerHTML = matches.length
+    ? `<div class="qf-group">From the database</div>` + matches.map(qfRow).join("")
+    : `<div class="qf-empty">No food matches that.<br><span class="muted small">Press Analyse to describe it free-form instead.</span></div>`;
+}
+function closeQf() {
+  if (!els.quickResults) return;
+  els.quickResults.classList.add("hidden");
+  els.quickSearch.setAttribute("aria-expanded", "false");
+}
+function renderQfHints() {
+  if (!els.qfHint) return;
+  const parts = [];
+  const recents = getRecents();
+  if (recents.length) {
+    parts.push(`<span class="qf-hint-label">Recent</span>`);
+    recents.forEach((r) => parts.push(`<button class="qf-chip" type="button" data-quick="${esc(r)}">${esc(r)}</button>`));
+  }
+  parts.push(`<span class="qf-hint-label">Popular</span>`);
+  POPULAR.forEach((p) => {
+    const f = FOODS.find((x) => x.name.includes(p));
+    if (f) parts.push(`<button class="qf-chip" type="button" data-quick="${esc(f.name)}">${foodEmoji(f.name, f.category)} ${esc(f.name)}</button>`);
+  });
+  els.qfHint.innerHTML = parts.join("");
+}
+function useQuickFood(name) {
+  const f = FOODS.find((x) => x.name === name);
+  if (!f) return;
+  els.mealInput.value = `${f.name} (100 g)`;
+  pushRecent(f.name);
+  renderQfHints();
+  closeQf();
+  els.quickSearch.value = "";
+  if (els.quickClear) els.quickClear.classList.add("hidden");
+  analyse();
+}
+
+if (els.quickSearch) {
+  let qfTimer;
+  els.quickSearch.addEventListener("input", () => {
+    if (els.quickClear) els.quickClear.classList.toggle("hidden", !els.quickSearch.value);
+    clearTimeout(qfTimer);
+    qfTimer = setTimeout(quickFind, 90);
+  });
+  els.quickSearch.addEventListener("focus", () => { if (els.quickSearch.value.trim()) quickFind(); });
+  els.quickSearch.addEventListener("keydown", (e) => {
+    const items = [...els.quickResults.querySelectorAll(".qf-item")];
+    if (!items.length) return;
+    const cur = items.findIndex((x) => x.classList.contains("sel"));
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = e.key === "ArrowDown" ? Math.min(cur + 1, items.length - 1) : Math.max(cur - 1, 0);
+      items.forEach((x, i) => x.classList.toggle("sel", i === next));
+      items[next].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      useQuickFood(items[cur > -1 ? cur : 0].dataset.name);
+    } else if (e.key === "Escape") {
+      closeQf();
+    }
+  });
+}
+if (els.quickClear) {
+  els.quickClear.addEventListener("click", () => {
+    els.quickSearch.value = "";
+    closeQf();
+    els.quickClear.classList.add("hidden");
+    els.quickSearch.focus();
+  });
+}
+if (els.quickResults) {
+  els.quickResults.addEventListener("click", (e) => {
+    const row = e.target.closest(".qf-item");
+    if (row) useQuickFood(row.dataset.name);
+  });
+}
+if (els.qfHint) {
+  els.qfHint.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-quick]");
+    if (chip) useQuickFood(chip.dataset.quick);
+  });
+}
+document.addEventListener("click", (e) => {
+  if (!els.quickSearch) return;
+  if (!e.target.closest(".quickfind") && !e.target.closest("#qfHint")) closeQf();
+});
+
+/* -------------------------------------- expandable nutrient detail */
+const TOOLTIPS = {
+  Calories: "Energy from food, in kilocalories (kcal). 1 kcal = 1 calorie.",
+  Protein: "Builds and repairs muscle, skin and other tissue.",
+  Carbs: "Your body's main energy source. 4 kcal per gram.",
+  Fat: "Concentrated energy; helps absorb vitamins A, D, E and K.",
+  Fibre: "Indigestible carbohydrate that aids digestion and fullness.",
+  Sugar: "Carbohydrates that raise blood sugar quickly.",
+  Sodium: "Salt in milligrams. High intake is linked with blood pressure.",
+};
+const NUTRIENT_REF = {
+  Calories: { max: 2000, unit: "kcal", dp: 0, ico: "🔥", ref: "of a 2000 kcal day" },
+  Protein:  { max: 50,   unit: "g",   dp: 1, ico: "🥩", ref: "of a 50 g reference" },
+  Carbs:    { max: 130,  unit: "g",   dp: 1, ico: "🌾", ref: "of a 130 g reference" },
+  Fat:      { max: 70,   unit: "g",   dp: 1, ico: "🥑", ref: "of a 70 g reference" },
+  Fibre:    { max: 30,   unit: "g",   dp: 1, ico: "🌿", ref: "of a 30 g reference" },
+  Sugar:    { max: 50,   unit: "g",   dp: 1, ico: "🍬", ref: "of a 50 g reference" },
+  Sodium:   { max: 2000, unit: "mg",  dp: 0, ico: "🧂", ref: "of a 2000 mg reference" },
+};
+
+/* Short, plain-language insights derived from the analysed totals.
+   Used as a fallback whenever the AI does not return its own highlights. */
+function deriveInsights(t) {
+  t = t || {};
+  const kcal = Math.max(t.calories || 0, 1);
+  const pct = (v, dv) => ((v || 0) / dv) * 100;
+  const out = [];
+  if (pct(t.protein, 50) >= 30) out.push({ i: "💪", t: "High in protein" });
+  if (pct(t.fiber, 30) >= 25) out.push({ i: "🌿", t: "Good source of fibre" });
+  if (pct(t.sugar, 50) > 30) out.push({ i: "🍬", t: "Relatively high in sugar" });
+  if (pct(t.sodium, 2300) > 40) out.push({ i: "🧂", t: "High in sodium" });
+  if ((t.fat || 0) * 9 / kcal > .40) out.push({ i: "🧈", t: "Fat-heavy for its size" });
+  if (t.calories > 0 && t.calories < 250) out.push({ i: "🪶", t: "Low-calorie option" });
+  else if (t.calories > 800) out.push({ i: "🔥", t: "Large meal — share or split it" });
+  if (pct(t.fiber, 30) >= 25 && pct(t.protein, 50) >= 25) out.push({ i: "⚖️", t: "Balanced macros" });
+  if (!out.length) out.push({ i: "⚖️", t: "Moderate, mixed macros" });
+  return out.slice(0, 5);
+}
+
+function renderMoreDetails(a) {
+  if (!els.nutrientHighlights || !a) return;
+  const people = Math.max(1, +(els.peopleCount ? els.peopleCount.value : 1));
+  const per = (v) => (v || 0) / people;
+  els.nutrientHighlights.innerHTML = Object.keys(NUTRIENT_REF).map((label) => {
+    const r = NUTRIENT_REF[label];
+    const key = label.toLowerCase() === "fibre" ? "fiber" : label.toLowerCase();
+    const val = per(a[key]);
+    const pct = clamp(Math.round((val / r.max) * 100), 0, 100);
+    const over = label === "Sugar" ? val > r.max : label === "Sodium" ? val > r.max : false;
+    return `<div class="nh-card tip" tabindex="0" title="${esc(TOOLTIPS[label] || "")}">
+      <div class="nh-top"><span class="nh-ico">${r.ico}</span><span class="nh-label">${label}</span></div>
+      <div class="nh-val">${val.toFixed(r.dp)}<small>${r.unit}</small></div>
+      <div class="nh-bar"><i class="${over ? "over" : ""}" style="width:${pct}%"></i></div>
+      <div class="nh-sub">${r.ref}</div>
+    </div>`;
+  }).join("");
+
+  // AI-supplied highlights first, then locally derived insights so this row is never empty.
+  const chips = [];
+  (Array.isArray(a.provides) ? a.provides : []).forEach((p) => chips.push({ i: "✨", t: p, s: "AI" }));
+  const cats = Array.isArray(a.category) ? a.category : (a.category ? [a.category] : []);
+  cats.forEach((c) => chips.push({ i: "🍽", t: String(c), s: "AI" }));
+  deriveInsights(a).forEach((c) => chips.push({ i: c.i, t: c.t, s: "Calc" }));
+  els.microCards.innerHTML = chips.length
+    ? chips.slice(0, 8).map((c) => `<div class="mc-tile tip" tabindex="0" title="${c.s === "AI" ? "AI-generated insight" : "Calculated from the nutrition facts above"}">
+        <span class="mi">${c.i}</span><span class="mt">${esc(c.t)}</span><span class="ms ${c.s.toLowerCase()}">${c.s}</span></div>`).join("")
+    : `<div class="micro-card-empty muted small">No extra highlights for this meal.</div>`;
+}
+
+if (els.saveMealFav) {
+  els.saveMealFav.addEventListener("click", () => {
+    if (!analysis) return;
+    const label = (analysis.text || "My meal").slice(0, 60);
+    const added = toggleFav({ name: label, category: null });
+    els.saveMealFav.classList.toggle("saved", added);
+    els.saveMealFav.title = added ? "Saved to favourites" : "Removed from favourites";
+  });
+}
+
+renderQfHints();
+renderFavs();
+syncFavHearts();

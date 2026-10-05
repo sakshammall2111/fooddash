@@ -60,6 +60,10 @@
       <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 2"/>
       </svg>History</a>
+    <a href="#favorites" class="nav-link" data-spy="favorites">
+      <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 20.2s-7.3-4.3-7.3-9.3A4.2 4.2 0 0112 8.3a4.2 4.2 0 017.3 2.6c0 5-7.3 9.3-7.3 9.3z"/>
+      </svg>Favourites</a>
     <a href="#database" class="nav-link" data-spy="database">
       <svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2.2"/>
@@ -88,8 +92,8 @@
     <span class="hero-blob b2" aria-hidden="true"></span>
     <div class="hero-copy">
       <span class="kicker"><span class="kicker-dot"></span>AI-powered nutrition, made simple</span>
-      <h2 class="hero-title">Understand What's<br><span class="grad">on Your Plate.</span></h2>
-      <p class="hero-sub">Snap a photo or describe your meal — MealLens breaks it into calories, macros, a health score and smarter swaps in seconds.</p>
+      <h2 class="hero-title">Understand Your Food.<br><span class="grad">Improve Your Choices.</span></h2>
+      <p class="hero-sub">Snap a photo or type a meal — get calories, macros and a health score in seconds.</p>
       <div class="hero-ctas">
         <a href="#analyser" class="btn primary big cta-glow">
           <svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -108,7 +112,7 @@
       <ul class="hero-trust">
         <li>No sign-up</li>
         <li>113-food database</li>
-        <li>Photo or text</li>
+        <li>Saves to your device</li>
       </ul>
     </div>
 
@@ -176,7 +180,21 @@
       </div>
     </div>
 
-    <div class="divider-or"><span>or describe it</span></div>
+    <div class="divider-or"><span>or find a food fast</span></div>
+
+    <div class="quickfind">
+      <div class="qf-field">
+        <svg class="qf-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4L20 20"/>
+        </svg>
+        <input id="quickSearch" type="text" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="quickResults"
+               placeholder="Search 113 foods — try “dal”, “apple”, “rice”…" aria-label="Quick food search">
+        <button id="quickClear" class="qf-x hidden" type="button" aria-label="Clear quick search">×</button>
+      </div>
+      <div id="quickResults" class="qf-menu hidden" role="listbox" aria-label="Food suggestions"></div>
+    </div>
+
+    <div class="qf-hint muted small" id="qfHint"></div>
 
     <textarea id="mealInput" rows="3" placeholder="e.g. 2 chapati, 150 g rajma, 100 g rice, 1 tsp ghee"></textarea>
 
@@ -187,7 +205,7 @@
       <button class="example-chip" type="button" data-emoji="🍳" data-text="Hearty breakfast: 2 eggs omelette, 2 slices whole wheat toast with butter, 1 cup milk tea with sugar">🍳 Breakfast</button>
     </div>
 
-    <p class="muted small">Amounts in grams give the most accurate estimate — e.g. <em>“2 chapati + 1 bowl dal + 100 g curd”</em>.</p>
+    <p class="muted small" id="gramsHint">Amounts in grams give the most accurate estimate — e.g. <em>“2 chapati + 1 bowl dal + 100 g curd”</em>.</p>
 
     <div class="row">
       <button id="analyseBtn" class="btn primary big" type="button">
@@ -222,7 +240,14 @@
     <div id="result" class="hidden">
       <div class="report-head">
         <span class="rh-title"><span class="rh-dot" aria-hidden="true"></span>Nutrition report</span>
-        <span class="pill-soft">per serving shown</span>
+        <div class="head-actions">
+          <span class="pill-soft">per serving shown</span>
+          <button id="saveMealFav" class="icon-btn sm" type="button" title="Save this meal to favourites" aria-label="Save this meal to favourites">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20.2s-7.3-4.3-7.3-9.3A4.2 4.2 0 0112 8.3a4.2 4.2 0 017.3 2.6c0 5-7.3 9.3-7.3 9.3z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="hero-grid">
@@ -288,6 +313,24 @@
         <div id="portionGrid" class="portion-grid"></div>
       </div>
       <div id="itemsTableWrap"></div>
+
+      <!-- expandable detail: keeps the first screen short, full data one tap away -->
+      <details id="moreDetails" class="more-details">
+        <summary>
+          <span>Full breakdown &amp; what this meal provides</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 9.5l6 6 6-6"/>
+          </svg>
+        </summary>
+        <div class="more-body">
+          <div class="fact-note">
+            <span class="fn-pill">Nutrition facts</span> Measured values from the food database.
+            <span class="fn-pill ai">AI insight</span> Generated estimate from your description — treat as a guide, not a medical claim.
+          </div>
+          <div id="nutrientHighlights" class="nutrient-highlights"></div>
+          <div id="microCards" class="micro-cards"></div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -418,6 +461,15 @@
       <div class="stat-card"><span class="sc-icon" id="dashTrendIcon">↔</span><span class="stat-num" id="dashTrend">–</span><span class="stat-label">vs previous week</span></div>
     </div>
 
+    <div id="todaySummary" class="today-strip hidden" aria-label="What you analysed today">
+      <span class="ts-ico" aria-hidden="true">📆</span>
+      <div class="ts-main">
+        <div class="ts-line"><b>Today</b> <span id="todayMeta" class="muted small"></span></div>
+        <div class="ts-bar"><i id="todayBar"></i></div>
+      </div>
+      <span class="ts-score" id="todayScore"></span>
+    </div>
+
     <div class="charts-grid two">
       <div class="card chart-card">
         <h3>🥧 Where the calories come from</h3>
@@ -471,6 +523,18 @@
     </div>
 
     <div id="historyList" class="history-list"></div>
+  </section>
+
+  <!-- ================= FAVOURITES ================= -->
+  <section id="favorites" class="panel section reveal">
+    <div class="section-head">
+      <div>
+        <h2>Favourites <span class="muted small" id="favCount"></span></h2>
+        <p class="muted small">Foods you saved. Tap to see full nutrition, or analyse one serving.</p>
+      </div>
+      <button id="clearFavs" class="btn ghost small-btn hidden" type="button">Clear all</button>
+    </div>
+    <div id="favGrid" class="food-grid"></div>
   </section>
 
   <!-- ================= FOODS ================= -->
@@ -549,6 +613,11 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 2"/>
     </svg><span>History</span>
+  </a>
+  <a href="#favorites" class="bn-link" data-spy="favorites">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 20.2s-7.3-4.3-7.3-9.3A4.2 4.2 0 0112 8.3a4.2 4.2 0 017.3 2.6c0 5-7.3 9.3-7.3 9.3z"/>
+    </svg><span>Saved</span>
   </a>
   <a href="#database" class="bn-link" data-spy="database">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
